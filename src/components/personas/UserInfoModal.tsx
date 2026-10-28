@@ -47,18 +47,18 @@ function InfoSection({ title, children }: InfoSectionProps) {
 export function UserInfoModal({ open, onOpenChange, userData, ahorrosData }: UserInfoModalProps) {
   // Obtener la línea de ahorro de nómina más reciente
   const ahorroNomina = (() => {
-    const lineas = (ahorrosData || []).filter(a => a.SavingsType === 'Linea de Ahorro de nómina');
+    const lineas = (ahorrosData || []).filter(a => a.savings_type === 'Linea de Ahorro de nómina');
     if (!lineas.length) return null;
     return lineas.sort((a, b) => {
-      const fechaA = a.fechacreacion?.seconds ?? 0;
-      const fechaB = b.fechacreacion?.seconds ?? 0;
+      const fechaA = new Date(a.fechacreacion ?? 0).getTime() || 0;
+      const fechaB = new Date(b.fechacreacion ?? 0).getTime() || 0;
       return fechaB - fechaA;
     })[0];
   })();
   const formatDate = (dateValue) => {
     if (!dateValue) return 'No disponible';
     
-    // Si es un objeto Timestamp de Firebase (con seconds)
+    // Si es un objeto timestamp heredado (con seconds)
     if (dateValue.seconds) {
       return new Date(dateValue.seconds * 1000).toLocaleDateString('es-ES');
     }
@@ -78,7 +78,7 @@ export function UserInfoModal({ open, onOpenChange, userData, ahorrosData }: Use
 
   const formatCurrency = (value) => {
     if (!value) return '$0';
-    // Los números vienen como string en Firebase, convertir primero
+    // Los números pueden venir como string, convertir primero
     const numValue = typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]+/g, '')) : value;
     if (isNaN(numValue)) return '$0';
     return '$' + numValue.toLocaleString('es-ES');
@@ -100,10 +100,10 @@ export function UserInfoModal({ open, onOpenChange, userData, ahorrosData }: Use
           {/* Datos de registro */}
           <InfoSection title="Datos de registro">
             <div className="grid grid-cols-4 gap-4">
-              <InfoRow label="Tipo de documento" value={userData?.tipoDocumento || 'No disponible'} />
-              <InfoRow label="Número de documento" value={userData?.nroDocumento || userData?.id || 'No disponible'} />
-              <InfoRow label="Fecha de expedición del documento" value={formatDate(userData?.fechaExpedicion)} />
-              <InfoRow label="Ciudad de expedición del documento" value={userData?.ciudadExpedicion || 'No disponible'} />
+              <InfoRow label="Tipo de documento" value={userData?.tipo_documento || 'No disponible'} />
+              <InfoRow label="Número de documento" value={userData?.nro_documento || userData?.id || 'No disponible'} />
+              <InfoRow label="Fecha de expedición del documento" value={formatDate(userData?.fecha_expedicion)} />
+              <InfoRow label="Ciudad de expedición del documento" value={userData?.ciudad_expedicion || 'No disponible'} />
             </div>
           </InfoSection>
 
@@ -111,7 +111,7 @@ export function UserInfoModal({ open, onOpenChange, userData, ahorrosData }: Use
           <InfoSection title="Datos personales">
             <div className="grid grid-cols-4 gap-4">
               <InfoRow label="Nombres y Apellidos" value={userData?.display_name || 'No disponible'} />
-              <InfoRow label="Sexo" value={userData?.Genero || 'No especificado'} />
+              <InfoRow label="Sexo" value={userData?.genero || 'No especificado'} />
               <InfoRow label="Fecha de nacimiento" value={formatDate(userData?.fecha_nacimiento)} />
               <InfoRow label="Ciudad de nacimiento" value={userData?.ciudad_nacimiento || 'No disponible'} />
             </div>
@@ -200,11 +200,11 @@ export function UserInfoModal({ open, onOpenChange, userData, ahorrosData }: Use
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">¿Es usted una persona políticamente expuesta (Decreto 830 de 2021)?.</p>
-                  <p className="text-sm font-medium text-foreground">{userData?.figPPE ? 'Sí' : 'No'}</p>
+                  <p className="text-sm font-medium text-foreground">{userData?.flg_ppe ? 'Sí' : 'No'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">¿Tiene familiares hasta segundo grado de consanguinidad, segundo de afinidad y primero civil que sean PEP's?</p>
-                  <p className="text-sm font-medium text-foreground">{userData?.figRelativasPPE ? 'Sí' : 'No'}</p>
+                  <p className="text-sm font-medium text-foreground">{userData?.flg_relatives_ppe ? 'Sí' : 'No'}</p>
                 </div>
               </div>
             </InfoSection>
@@ -212,7 +212,7 @@ export function UserInfoModal({ open, onOpenChange, userData, ahorrosData }: Use
             <InfoSection title="Datos de origen de recursos">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Los recursos que entregaré en Ahorro y demás servicios provienen de las siguientes fuentes.</p>
-                <p className="text-sm font-medium text-foreground">{userData?.fundsSource?.[0] || 'Salario'}</p>
+                <p className="text-sm font-medium text-foreground">{userData?.funds_source?.[0] || 'Salario'}</p>
               </div>
             </InfoSection>
           </div>
@@ -221,13 +221,13 @@ export function UserInfoModal({ open, onOpenChange, userData, ahorrosData }: Use
           {ahorroNomina && (
             <InfoSection title="Datos de empresa">
               <div className="grid grid-cols-4 gap-4 mb-4">
-                <InfoRow label="NIT de la empresa" value={ahorroNomina.CompanyNIT || 'No disponible'} />
-                <InfoRow label="Empresa" value={ahorroNomina.CompayName || 'No disponible'} />
-                <InfoRow label="Ciudad" value={ahorroNomina.Ubicaciontrabajo || 'No disponible'} />
-                <InfoRow label="Tipo de contrato" value={ahorroNomina.TypeOfContact || 'No disponible'} />
+                <InfoRow label="NIT de la empresa" value={ahorroNomina.company_nit || 'No disponible'} />
+                <InfoRow label="Empresa" value={ahorroNomina.compay_name || 'No disponible'} />
+                <InfoRow label="Ciudad" value={ahorroNomina.ubicaciontrabajo || 'No disponible'} />
+                <InfoRow label="Tipo de contrato" value={ahorroNomina.type_of_contact || 'No disponible'} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <InfoRow label="Monto ahorrado" value={formatCurrency(ahorroNomina.Total_Savings_PreApproval)} />
+                <InfoRow label="Monto ahorrado" value={formatCurrency(ahorroNomina.total_savings_pre_approval)} />
                 <InfoRow label="Profesión" value="-" />
               </div>
             </InfoSection>

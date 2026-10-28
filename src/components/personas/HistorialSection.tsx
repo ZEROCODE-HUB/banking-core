@@ -98,7 +98,7 @@ export function HistorialSection({ docId }: HistorialSectionProps) {
     try {
       let dateObj;
       if (date.toDate && typeof date.toDate === 'function') {
-        // Firestore Timestamp
+        // Objeto timestamp con método toDate()
         dateObj = date.toDate();
       } else if (date instanceof Date) {
         dateObj = date;

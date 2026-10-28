@@ -17,9 +17,8 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { X, AlertTriangle, ArrowRight, Check, CalendarIcon } from "lucide-react";
-import { actualizarEstadoTransaccion, actualizarDocumento } from "@/supabase/database";
-import { db } from "@/supabase/config";
-import { doc } from "firebase/firestore";
+import { actualizarEstadoTransaccion } from "@/supabase/database";
+import { supabase } from "@/supabase/config";
 import { useToast } from "@/hooks/use-toast";
 
 interface SolicitudData {
@@ -69,7 +68,6 @@ export function CambiarEstadoModal({ open, onOpenChange, solicitud, onEstadoChan
   const [observacionesCompletado, setObservacionesCompletado] = useState("");
   
   // Rechazado fields
-  const [fechaRechazo, setFechaRechazo] = useState<Date | undefined>(new Date());
   const [observacionesRechazado, setObservacionesRechazado] = useState("");
 
   if (!solicitud) return null;
@@ -98,58 +96,56 @@ export function CambiarEstadoModal({ open, onOpenChange, solicitud, onEstadoChan
     }
 
     setLoading(true);
-    
+
     try {
-      if (solicitud.subcoleccionPath && solicitud.docId) {
-        // Retiro de subcolección (ej: confirmacionretiros de CDAT)
-        const estadoSubcoleccion = nuevoEstado === "Completado" ? "completado" : "rechazado";
+      if (solicitud.subcoleccionPath) {
+        // Retiro de CDAT: la fila vive en `confirmacionretiros`.
         const datosSubcoleccion: any = {
-          estados: estadoSubcoleccion,
-          observation: nuevoEstado === "Completado" ? observacionesCompletado : observacionesRechazado,
-          confirmationDate: new Date(),
+          estados: nuevoEstado === "Completado" ? "completado" : "rechazado",
+          observaciones: nuevoEstado === "Completado" ? observacionesCompletado : observacionesRechazado,
+          updated_at: new Date().toISOString(),
         };
         if (nuevoEstado === "Completado") {
           datosSubcoleccion.chanelpay = canalPago;
+          const fechaPagoFinal = fechaPagoConfirm ?? fechaPago;
+          if (fechaPagoFinal) datosSubcoleccion.fecharetiro = fechaPagoFinal.toISOString();
         }
-        await actualizarDocumento(solicitud.subcoleccionPath, solicitud.docId, datosSubcoleccion);
+        const { error } = await supabase
+          .from('confirmacionretiros')
+          .update(datosSubcoleccion)
+          .eq('id', solicitud.docId);
+        if (error) throw error;
 
-        // Si se rechaza, devolver el monto al saldoDisponible del CDAT
+        // Si se rechaza, devolver el monto al saldo disponible del CDAT.
         if (nuevoEstado === "Rechazado" && solicitud.cdatId && solicitud.montoRaw) {
-          try {
-            const { getDoc } = await import('firebase/firestore');
-            const cdatRef = doc(db, 'Cdats', solicitud.cdatId);
-            const cdatSnap = await getDoc(cdatRef);
-            if (cdatSnap.exists()) {
-              const saldoActual = Number(cdatSnap.data().saldoDisponible || 0);
-              await actualizarDocumento('Cdats', solicitud.cdatId, {
-                saldoDisponible: saldoActual + solicitud.montoRaw
-              });
-              console.log('💰 Saldo devuelto al CDAT saldoDisponible:', solicitud.montoRaw);
-            }
-          } catch (err) {
-            console.error('Error devolviendo saldo al CDAT:', err);
+          const { data: cdatRow, error: cdatError } = await supabase
+            .from('cdats')
+            .select('saldo_disponible')
+            .eq('id', solicitud.cdatId)
+            .maybeSingle();
+          if (cdatError) throw cdatError;
+
+          if (cdatRow) {
+            const nuevoSaldo = Number((cdatRow as any).saldo_disponible ?? 0) + Number(solicitud.montoRaw);
+            const { error: updateError } = await supabase
+              .from('cdats')
+              .update({ saldo_disponible: nuevoSaldo, updated_at: new Date().toISOString() })
+              .eq('id', solicitud.cdatId);
+            if (updateError) throw updateError;
           }
         }
       } else {
-        // Transacción normal en colección transactions
-        if (!solicitud.docId) {
-          toast({
-            title: "Error",
-            description: "No se encontró el ID de la transacción",
-            variant: "destructive",
-          });
-          return;
-        }
-        const nuevoStatusFirebase = nuevoEstado === "Completado" ? "APPROVED" : "REJECTED";
+        // Transacción normal en `transactions`.
+        const nuevoStatus = nuevoEstado === "Completado" ? "APPROVED" : "REJECTED";
         const datosAdicionales: any = {
           observation: nuevoEstado === "Completado" ? observacionesCompletado : observacionesRechazado,
-          confirmationDate: new Date(),
         };
         if (nuevoEstado === "Completado") {
-          datosAdicionales.chanelpay = canalPago;
+          datosAdicionales.chanel_pay = canalPago;
+          const fechaPagoFinal = fechaPagoConfirm ?? fechaPago;
+          if (fechaPagoFinal) datosAdicionales.confirmation_date = fechaPagoFinal.toISOString();
         }
-        console.log('🔄 Actualizando transacción:', solicitud.docId, 'a estado:', nuevoStatusFirebase);
-        await actualizarEstadoTransaccion(solicitud.docId, nuevoStatusFirebase, datosAdicionales);
+        await actualizarEstadoTransaccion(solicitud.docId, nuevoStatus, datosAdicionales);
       }
       
       toast({
@@ -165,7 +161,7 @@ export function CambiarEstadoModal({ open, onOpenChange, solicitud, onEstadoChan
       console.error('Error al actualizar estado:', error);
       toast({
         title: "Error",
-        description: "No se pudo actualizar el estado de la transacción",
+        description: (error as any)?.message || "No se pudo actualizar el estado de la transacción",
         variant: "destructive",
       });
     } finally {
@@ -508,36 +504,8 @@ export function CambiarEstadoModal({ open, onOpenChange, solicitud, onEstadoChan
                 </span>
               </div>
 
-              {/* Fecha de rechazo */}
+              {/* Observaciones */}
               <div className="bg-[#F8F8FA] rounded-xl p-5 space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Fecha de rechazo</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal bg-card border-0 h-12",
-                          !fechaRechazo && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {fechaRechazo ? format(fechaRechazo, "dd/MM/yyyy", { locale: es }) : <span>Seleccionar fecha</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={fechaRechazo}
-                        onSelect={setFechaRechazo}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                {/* Observaciones */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Observaciones</label>
                   <Textarea 

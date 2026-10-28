@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { Eye, X, Calendar, Clock, DollarSign, FileText, Loader2 } from "lucide-react";
+import { Eye, Loader2 } from "lucide-react";
 import { CDATDetailModal } from "./CDATDetailModal";
 import { obtenerColeccion } from "@/supabase/database";
-import { Timestamp } from "firebase/firestore";
+import { supabase } from "@/supabase/config";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,120 +23,231 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 
-// Mock chart data
-const chartData = [
-  { month: 'Enero', aperturados: 13000, anticipos: 14000 },
-  { month: 'Febrero', aperturados: 6000, anticipos: 5000 },
-  { month: 'Marzo', aperturados: 15000, anticipos: 17000 },
-  { month: 'Abril', aperturados: 16000, anticipos: 10000 },
-  { month: 'Mayo', aperturados: 10000, anticipos: 4000 },
-  { month: 'Junio', aperturados: 9000, anticipos: 8000 },
-  { month: 'Julio', aperturados: 5000, anticipos: 17000 },
-  { month: 'Agosto', aperturados: 15000, anticipos: 17000 },
-  { month: 'Septiembre', aperturados: 4000, anticipos: 8000 },
-  { month: 'Octubre', aperturados: 9000, anticipos: 8000 },
-  { month: 'Noviembre', aperturados: 13000, anticipos: 14000 },
-];
+const MONTHS_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+// Convierte cualquier fecha (ISO string, Date, Timestamp serializado) en Date
+const parseDate = (value: any): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+  if (typeof value?.toDate === 'function') {
+    try {
+      const fecha = value.toDate();
+      return isNaN(fecha.getTime()) ? null : fecha;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value?.seconds === 'number') {
+    const fecha = new Date(value.seconds * 1000);
+    return isNaN(fecha.getTime()) ? null : fecha;
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const fecha = new Date(value);
+    return isNaN(fecha.getTime()) ? null : fecha;
+  }
+  return null;
+};
 
 // Función para formatear fecha
-const formatearFecha = (timestamp: any) => {
-  try {
-    let fecha;
-    
-    if (timestamp && typeof timestamp.toDate === 'function') {
-      fecha = timestamp.toDate();
-    } else if (timestamp && timestamp.seconds) {
-      fecha = new Date(timestamp.seconds * 1000);
-    } else if (timestamp instanceof Date) {
-      fecha = timestamp;
-    } else if (typeof timestamp === 'string' || typeof timestamp === 'number') {
-      fecha = new Date(timestamp);
-    } else {
-      return 'Sin fecha';
-    }
-    
-    if (isNaN(fecha.getTime())) {
-      return 'Fecha inválida';
-    }
-    
-    return fecha.toLocaleDateString('es-CO', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  } catch (error) {
-    console.error('Error formateando fecha:', error);
-    return 'Error fecha';
-  }
+const formatearFecha = (value: any) => {
+  const fecha = parseDate(value);
+  if (!fecha) return 'Sin fecha';
+  return fecha.toLocaleDateString('es-CO', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 };
 
 // Función para formatear moneda
 const formatearMoneda = (monto: number) => {
-  if (!monto) return '$0';
+  const valor = Number(monto);
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
-  }).format(monto);
+  }).format(Number.isFinite(valor) ? valor : 0);
 };
 
 // Función para capitalizar primera letra
-const capitalizeFirst = (str: string) => {
+const capitalizeFirst = (str?: string) => {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 };
 
-// Mock table data
-const mockEstadoGeneralData = [
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", inversion: "$ 10.000.00", fechaInicio: "12/01/2025", fechaFin: "12/01/2025", tiempo: "12 meses", porcentaje: "14.3%", estado: "Activo" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", inversion: "$ 10.000.00", fechaInicio: "12/01/2025", fechaFin: "12/01/2025", tiempo: "12 meses", porcentaje: "14.3%", estado: "Activo" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", inversion: "$ 10.000.00", fechaInicio: "12/01/2025", fechaFin: "12/01/2025", tiempo: "12 meses", porcentaje: "14.3%", estado: "Activo" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", inversion: "$ 10.000.00", fechaInicio: "12/01/2025", fechaFin: "12/01/2025", tiempo: "12 meses", porcentaje: "14.3%", estado: "Activo" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", inversion: "$ 10.000.00", fechaInicio: "12/01/2025", fechaFin: "12/01/2025", tiempo: "12 meses", porcentaje: "14.3%", estado: "Activo" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", inversion: "$ 10.000.00", fechaInicio: "12/01/2025", fechaFin: "12/01/2025", tiempo: "12 meses", porcentaje: "14.3%", estado: "Finalizado" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", inversion: "$ 10.000.00", fechaInicio: "12/01/2025", fechaFin: "12/01/2025", tiempo: "12 meses", porcentaje: "14.3%", estado: "Finalizado" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", inversion: "$ 10.000.00", fechaInicio: "12/01/2025", fechaFin: "12/01/2025", tiempo: "12 meses", porcentaje: "14.3%", estado: "Eliminado" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", inversion: "$ 10.000.00", fechaInicio: "12/01/2025", fechaFin: "12/01/2025", tiempo: "12 meses", porcentaje: "14.3%", estado: "Eliminado" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", inversion: "$ 10.000.00", fechaInicio: "12/01/2025", fechaFin: "12/01/2025", tiempo: "12 meses", porcentaje: "14.3%", estado: "Activo" },
-];
+// Formato compacto para el eje Y de la gráfica
+const formatAxisValue = (value: number) => {
+  if (!Number.isFinite(value) || value === 0) return '0';
+  if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(value) >= 1_000) return `${Math.round(value / 1_000)}k`;
+  return String(value);
+};
 
-type StatusFilter = "Todos" | "Activo" | "Finalizado" | "Eliminado";
+type StatusFilter = "Todos" | "Activo" | "Finalizado" | "Pendiente de firma" | "Eliminado";
+type SearchType = "todos" | "nombre" | "documento" | "id";
+type Granularidad = "meses" | "años";
+
+interface CdatRow {
+  id: string;
+  idCdat: number | null;
+  nombreusuario: string;
+  documentousuario: string;
+  inversion: number;
+  ganancias: number;
+  rendimiento: number;
+  ea: number;
+  tiempo: number;
+  estado: string;
+  fechaApertura: any;
+  fechaFinalizacion: any;
+  firmado: boolean;
+  retefuenteMonto: number;
+  retefuentePorcentaje: number;
+  tipooperacion: string;
+  origenrecursos: string;
+  saldoDisponible: number;
+  archivos: string[];
+  comprobantes: string[];
+  observaciones: string;
+}
+
+// Fila cruda de Supabase (snake_case) -> modelo de la vista
+const mapCdat = (row: any): CdatRow => ({
+  id: row.id,
+  idCdat: row.id_cdat ?? null,
+  nombreusuario: row.nombreusuario || '',
+  documentousuario: row.documentousuario || '',
+  inversion: Number(row.inversion) || 0,
+  ganancias: Number(row.ganancias) || 0,
+  rendimiento: Number(row.rendimiento) || 0,
+  ea: Number(row.ea) || 0,
+  tiempo: Number(row.tiempo) || 0,
+  estado: row.estado || '',
+  fechaApertura: row.fecha_apertura ?? null,
+  fechaFinalizacion: row.fecha_finalizacion ?? null,
+  firmado: row.firmado === true,
+  retefuenteMonto: Number(row.retefuente_monto) || 0,
+  retefuentePorcentaje: Number(row.retefuenteporcentaje) || 0,
+  tipooperacion: row.tipooperacion || '',
+  origenrecursos: row.origenrecursos || '',
+  saldoDisponible: Number(row.saldo_disponible) || 0,
+  archivos: Array.isArray(row.archivos) ? row.archivos : [],
+  comprobantes: Array.isArray(row.comprobantes) ? row.comprobantes : [],
+  observaciones: row.observaciones || '',
+});
+
+// `CDATDetailModal` sigue esperando los nombres camelCase del modelo anterior
+const toModalCdat = (cdat: CdatRow | null) => cdat ? {
+  id: cdat.id,
+  nombreusuario: cdat.nombreusuario,
+  firmado: cdat.firmado,
+  Inversion: cdat.inversion,
+  Ganancias: cdat.ganancias,
+  Rendimiento: cdat.rendimiento,
+  FechaApertura: cdat.fechaApertura,
+  FechaFinalizacion: cdat.fechaFinalizacion,
+  Tiempo: cdat.tiempo,
+  RetefuenteMonto: cdat.retefuenteMonto,
+  Retefuenteporcentaje: cdat.retefuentePorcentaje || undefined,
+  EA: cdat.ea,
+  Tipooperacion: cdat.tipooperacion,
+  origenrecursos: cdat.origenrecursos,
+  saldoDisponible: cdat.saldoDisponible,
+  Archivos: cdat.archivos,
+  comprobantes: cdat.comprobantes,
+  observaciones: cdat.observaciones,
+} : undefined;
+
+// Serie mensual/anual: inversión aperturada vs. anticipos (retiros) solicitados
+const buildChartData = (
+  cdats: CdatRow[],
+  retiros: any[],
+  granularidad: Granularidad,
+) => {
+  const hoy = new Date();
+  const buckets: Array<{ key: string; month: string; aperturados: number; anticipos: number }> = [];
+
+  if (granularidad === 'años') {
+    for (let i = 4; i >= 0; i--) {
+      const year = hoy.getFullYear() - i;
+      buckets.push({ key: String(year), month: String(year), aperturados: 0, anticipos: 0 });
+    }
+  } else {
+    for (let i = 11; i >= 0; i--) {
+      const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      buckets.push({
+        key: `${fecha.getFullYear()}-${fecha.getMonth()}`,
+        month: `${MONTHS_SHORT[fecha.getMonth()]} ${String(fecha.getFullYear()).slice(2)}`,
+        aperturados: 0,
+        anticipos: 0,
+      });
+    }
+  }
+
+  const porKey = new Map(buckets.map(b => [b.key, b]));
+
+  const keyDe = (value: any) => {
+    const fecha = parseDate(value);
+    if (!fecha) return null;
+    return granularidad === 'años'
+      ? String(fecha.getFullYear())
+      : `${fecha.getFullYear()}-${fecha.getMonth()}`;
+  };
+
+  cdats.forEach(cdat => {
+    const bucket = porKey.get(keyDe(cdat.fechaApertura) ?? '');
+    if (bucket) bucket.aperturados += cdat.inversion;
+  });
+
+  retiros.forEach(retiro => {
+    const bucket = porKey.get(
+      keyDe(retiro.fecha_solicitud ?? retiro.fecharetiro ?? retiro.created_at) ?? '',
+    );
+    if (bucket) bucket.anticipos += Number(retiro.monto) || 0;
+  });
+
+  return buckets;
+};
 
 export function EstadoGeneralCDATSection() {
   const { toast } = useToast();
-  const [statusFilter, setStatusFilter] = useState("Activo");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("Activo");
+  const [searchType, setSearchType] = useState<SearchType>("todos");
+  const [granularidad, setGranularidad] = useState<Granularidad>("meses");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [cdatsData, setCdatsData] = useState<any[]>([]);
+  const [itemsPerPage] = useState(10);
+  const [cdatsData, setCdatsData] = useState<CdatRow[]>([]);
+  const [retirosData, setRetirosData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [selectedCDAT, setSelectedCDAT] = useState<any>(null);
+  const [selectedCDAT, setSelectedCDAT] = useState<CdatRow | null>(null);
 
-  // Cargar todos los CDATs desde Firebase
-  const cargarCDATs = async () => {
+  // Cargar CDATs y retiros (para la serie de anticipos)
+  const cargarDatos = async () => {
     try {
       setIsLoading(true);
-      console.log('🔄 Cargando CDATs...');
-      
-      const cdats = await obtenerColeccion('Cdats');
-      console.log('📊 CDATs encontrados:', cdats.length);
-      
-      // Debug: Ver todos los estados únicos en los datos
-      const estadosUnicos = [...new Set(cdats.map((c: any) => c.Estado))];
-      console.log('🏷️ Estados únicos encontrados:', estadosUnicos);
-      
-      setCdatsData(cdats);
-      
+
+      const [cdats, retirosResult] = await Promise.all([
+        obtenerColeccion('Cdats'),
+        supabase
+          .from('confirmacionretiros')
+          .select('monto, fecha_solicitud, fecharetiro, created_at'),
+      ]);
+
+      setCdatsData((cdats as any[]).map(mapCdat));
+
+      if (retirosResult.error) {
+        console.warn('No se pudieron cargar los retiros para la gráfica:', retirosResult.error);
+        setRetirosData([]);
+      } else {
+        setRetirosData(retirosResult.data ?? []);
+      }
     } catch (error) {
-      console.error('❌ Error cargando CDATs:', error);
+      console.error('Error cargando CDATs:', error);
       toast({
         title: "Error",
         description: "Error al cargar los CDATs",
@@ -147,48 +258,85 @@ export function EstadoGeneralCDATSection() {
     }
   };
 
-  // Cargar datos al montar el componente
   useEffect(() => {
-    cargarCDATs();
+    cargarDatos();
   }, []);
 
   // Filtrar CDATs basado en búsqueda y estado
-  const filteredCDATs = cdatsData.filter(cdat => {
-    const matchesSearch = !searchTerm || 
-      cdat.nombreusuario?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cdat.documentousuario?.includes(searchTerm) ||
-      cdat.idCdat?.toString().includes(searchTerm);
-    
-    const matchesStatus = statusFilter === "Todos" || 
-      cdat.Estado?.toLowerCase() === statusFilter.toLowerCase();
-    
-    return matchesSearch && matchesStatus;
-  });
+  const filteredCDATs = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return cdatsData.filter(cdat => {
+      const coincideBusqueda = !term || (
+        searchType === 'nombre'
+          ? cdat.nombreusuario.toLowerCase().includes(term)
+          : searchType === 'documento'
+            ? String(cdat.documentousuario).toLowerCase().includes(term)
+            : searchType === 'id'
+              ? String(cdat.idCdat ?? '').includes(term)
+              : cdat.nombreusuario.toLowerCase().includes(term) ||
+                String(cdat.documentousuario).toLowerCase().includes(term) ||
+                String(cdat.idCdat ?? '').includes(term)
+      );
+
+      const coincideEstado = statusFilter === "Todos" ||
+        cdat.estado.toLowerCase() === statusFilter.toLowerCase();
+
+      return coincideBusqueda && coincideEstado;
+    });
+  }, [cdatsData, searchTerm, searchType, statusFilter]);
 
   // Ordenar por fecha más reciente primero
-  const sortedCDATs = [...filteredCDATs].sort((a, b) => {
-    const fechaA = a.FechaApertura?.seconds || a.FechaApertura?.getTime?.() || 0;
-    const fechaB = b.FechaApertura?.seconds || b.FechaApertura?.getTime?.() || 0;
-    return fechaB - fechaA; // Más reciente primero
-  });
+  const sortedCDATs = useMemo(() => {
+    return [...filteredCDATs].sort((a, b) => {
+      const fechaA = parseDate(a.fechaApertura)?.getTime() ?? 0;
+      const fechaB = parseDate(b.fechaApertura)?.getTime() ?? 0;
+      return fechaB - fechaA;
+    });
+  }, [filteredCDATs]);
 
   // Paginación
+  const totalPages = Math.max(1, Math.ceil(sortedCDATs.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedCDATs = sortedCDATs.slice(startIndex, startIndex + itemsPerPage);
+
+  const visiblePages = useMemo(() => {
+    const maxVisible = 5;
+    if (totalPages <= maxVisible) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    const end = Math.min(totalPages, start + maxVisible - 1);
+    start = Math.max(1, end - maxVisible + 1);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  }, [currentPage, totalPages]);
 
   // Reset página cuando cambien los filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, searchType, statusFilter]);
+
+  // Evitar quedar en una página que ya no existe
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   // Contar por estado (case insensitive)
-  const activoCount = cdatsData.filter(d => d.Estado?.toLowerCase() === "activo").length;
-  const finalizadoCount = cdatsData.filter(d => d.Estado?.toLowerCase() === "finalizado").length;
-  const eliminadoCount = cdatsData.filter(d => d.Estado?.toLowerCase() === "eliminado").length;
-  const pendienteFirmaCount = cdatsData.filter(d => d.Estado?.toLowerCase() === "pendiente de firma").length;
+  const countByEstado = (estado: string) =>
+    cdatsData.filter(d => d.estado.toLowerCase() === estado.toLowerCase()).length;
 
-  const getStatusColor = (estado: string) => {
-    const estadoLower = estado.toLowerCase();
+  const activoCount = countByEstado("Activo");
+  const finalizadoCount = countByEstado("Finalizado");
+  const eliminadoCount = countByEstado("Eliminado");
+  const pendienteFirmaCount = countByEstado("Pendiente de firma");
+
+  const chartData = useMemo(
+    () => buildChartData(cdatsData, retirosData, granularidad),
+    [cdatsData, retirosData, granularidad],
+  );
+  const hasChartData = chartData.some(d => d.aperturados > 0 || d.anticipos > 0);
+
+  const getStatusColor = (estado?: string) => {
+    const estadoLower = (estado || '').toLowerCase();
     switch (estadoLower) {
       case "activo":
         return "bg-green-100 text-green-600";
@@ -203,9 +351,14 @@ export function EstadoGeneralCDATSection() {
     }
   };
 
-  const handleView = (cdat: any) => {
+  const handleView = (cdat: CdatRow) => {
     setSelectedCDAT(cdat);
     setShowDetailModal(true);
+  };
+
+  const limpiarBusqueda = () => {
+    setSearchTerm('');
+    setSearchType('todos');
   };
 
   return (
@@ -213,16 +366,16 @@ export function EstadoGeneralCDATSection() {
       {/* Filters */}
       <div className="flex items-end gap-4 mb-6">
         <div className="flex-1 max-w-[280px] space-y-2">
-          <Label className="text-sm text-foreground font-normal">Tipo de búsqueda</Label>
-          <Select defaultValue="identificacion">
+          <Label className="text-sm text-foreground font-normal">Buscar por</Label>
+          <Select value={searchType} onValueChange={(value) => setSearchType(value as SearchType)}>
             <SelectTrigger className="bg-card border-border">
               <SelectValue placeholder="Seleccionar" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="identificacion">Identificación</SelectItem>
-              <SelectItem value="cedula">Cédula de ciudadanía</SelectItem>
-              <SelectItem value="pasaporte">Pasaporte</SelectItem>
-              <SelectItem value="permanencia">Permiso de permanencia</SelectItem>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="nombre">Nombre</SelectItem>
+              <SelectItem value="documento">Documento</SelectItem>
+              <SelectItem value="id">ID</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -238,7 +391,7 @@ export function EstadoGeneralCDATSection() {
         </div>
 
         <Button 
-          onClick={() => setSearchTerm('')}
+          onClick={limpiarBusqueda}
           disabled={isLoading}
           className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-12"
         >
@@ -266,7 +419,10 @@ export function EstadoGeneralCDATSection() {
               <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
               <span className="text-sm text-muted-foreground">Anticipos</span>
             </div>
-            <Select defaultValue="meses">
+            <Select
+              value={granularidad}
+              onValueChange={(value) => setGranularidad(value as Granularidad)}
+            >
               <SelectTrigger className="w-[120px] bg-background border-border">
                 <SelectValue />
               </SelectTrigger>
@@ -279,25 +435,31 @@ export function EstadoGeneralCDATSection() {
         </div>
         
         <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} barGap={2} barSize={20}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-              <XAxis 
-                dataKey="month" 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-              />
-              <YAxis 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                tickFormatter={(value) => `${value / 1000}k`}
-              />
-              <Bar dataKey="aperturados" fill="hsl(var(--sidebar-background))" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="anticipos" fill="#10b981" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {hasChartData ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} barGap={2} barSize={20}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis 
+                  dataKey="month" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                  tickFormatter={formatAxisValue}
+                />
+                <Bar dataKey="aperturados" fill="hsl(var(--sidebar-background))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="anticipos" fill="#10b981" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+              {isLoading ? 'Cargando información...' : 'Sin datos para graficar'}
+            </div>
+          )}
         </div>
       </div>
 
@@ -317,7 +479,7 @@ export function EstadoGeneralCDATSection() {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              Todos ({mockEstadoGeneralData.length})
+              Todos ({cdatsData.length})
             </button>
             <button
               onClick={() => setStatusFilter("Activo")}
@@ -408,20 +570,20 @@ export function EstadoGeneralCDATSection() {
             ) : (
               paginatedCDATs.map((cdat, index) => (
                 <TableRow key={cdat.id || index} className="border-b border-border">
-                  <TableCell className="text-foreground">{cdat.idCdat}</TableCell>
+                  <TableCell className="text-foreground">{cdat.idCdat ?? '-'}</TableCell>
                   <TableCell className="text-foreground">{cdat.nombreusuario || '-'}</TableCell>
                   <TableCell className="text-foreground">{cdat.documentousuario || '-'}</TableCell>
-                  <TableCell className="text-foreground">{formatearMoneda(cdat.Inversion)}</TableCell>
-                  <TableCell className="text-foreground">{formatearFecha(cdat.FechaApertura)}</TableCell>
-                  <TableCell className="text-foreground">{formatearFecha(cdat.FechaFinalizacion)}</TableCell>
-                  <TableCell className="text-foreground">{cdat.Tiempo || '-'}</TableCell>
-                  <TableCell className="text-foreground">{cdat.EA ? `${cdat.EA}%` : '-'}</TableCell>
+                  <TableCell className="text-foreground">{formatearMoneda(cdat.inversion)}</TableCell>
+                  <TableCell className="text-foreground">{formatearFecha(cdat.fechaApertura)}</TableCell>
+                  <TableCell className="text-foreground">{formatearFecha(cdat.fechaFinalizacion)}</TableCell>
+                  <TableCell className="text-foreground">{cdat.tiempo ? `${cdat.tiempo} meses` : '-'}</TableCell>
+                  <TableCell className="text-foreground">{cdat.ea ? `${cdat.ea}%` : '-'}</TableCell>
                   <TableCell>
                     <span className={cn(
                       "px-3 py-1 rounded-full text-xs font-medium",
-                      getStatusColor(cdat.Estado)
+                      getStatusColor(cdat.estado)
                     )}>
-                      {capitalizeFirst(cdat.Estado)}
+                      {capitalizeFirst(cdat.estado) || '-'}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -440,7 +602,11 @@ export function EstadoGeneralCDATSection() {
         </Table>
 
         {/* Pagination */}
-        <div className="flex items-center justify-center mt-4 pt-4 border-t border-border">
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+          <span className="text-sm text-muted-foreground">
+            Página {currentPage} de {totalPages} ({sortedCDATs.length} CDATs)
+          </span>
+
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -450,7 +616,7 @@ export function EstadoGeneralCDATSection() {
               <span className="text-sm">&lt;</span>
             </button>
             
-            {[1, 2, 3].map(page => (
+            {visiblePages.map(page => (
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
@@ -465,18 +631,9 @@ export function EstadoGeneralCDATSection() {
               </button>
             ))}
             
-            <span className="text-muted-foreground">...</span>
-            
-            <button
-              onClick={() => setCurrentPage(16)}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-medium border border-border hover:bg-muted"
-            >
-              16
-            </button>
-            
             <button 
-              onClick={() => setCurrentPage(p => Math.min(16, p + 1))}
-              disabled={currentPage === 16}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
               className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span className="text-sm">&gt;</span>
@@ -489,7 +646,7 @@ export function EstadoGeneralCDATSection() {
       <CDATDetailModal 
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
-        cdat={selectedCDAT}
+        cdat={toModalCdat(selectedCDAT)}
       />
     </div>
   );

@@ -13,8 +13,6 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { enviarCodigoOTP, enviarConfirmacionTransaccion } from "@/utils/sendgrid";
 import { crearTransaccionNovedadSaldo, actualizarSaldoCuentaAhorro } from "@/supabase/database";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/supabase/config";
 
 interface NovedadSaldoModalProps {
   open: boolean;
@@ -23,11 +21,14 @@ interface NovedadSaldoModalProps {
   accountType: string;
   currentBalance: string;
   userData?: {
+    id?: string;
     uid?: string;
     email?: string;
     display_name?: string;
-    numeroDocumento?: string;
-    tipoDocumento?: string;
+    nro_documento?: string;
+    nit?: string;
+    phone_number?: string;
+    empresa?: string;
     [key: string]: any;
   };
   authenticatedUser?: {
@@ -97,19 +98,11 @@ export function NovedadSaldoModal({
 
   const sendOtpEmailToUser = async (otp: string) => {
     const emailDestino = "novedaddesaldo@alianzacapital.co";
-    console.log('📧 ✨ EMAIL CORPORATIVO PARA REGISTRO:', emailDestino);
-    console.log('📋 IMPORTANTE: Email requerido para auditoría y documentación');
-    
-    console.log('🔍 DEBUG - userData disponible:', {
-      uid: userData?.uid,
-      numeroDocumento: userData?.numeroDocumento,
-      id: userData?.id
-    });
-    
+
     const datosTransaccion = {
-      userId: userData?.uid || authenticatedUser?.uid || 'sistema-admin',
+      userId: userData?.id || userData?.uid || authenticatedUser?.uid || 'sistema-admin',
       email: emailDestino,
-      nombreUsuario: userData?.display_name || userName || 'Usuario', // ✅ CORREGIDO
+      nombreUsuario: userData?.display_name || userName || 'Usuario',
       tipoOperacion: operationType === 'add' ? 'Deposito' : 'Debito',
       valorTransaccion: `$${formatNumber(amount)}`,
       idTransaccion: transactionId,
@@ -118,19 +111,10 @@ export function NovedadSaldoModal({
     };
 
     try {
-      console.log('🚀 Enviando email para registro documentado...');
       const result = await enviarCodigoOTP(datosTransaccion);
-      
-      if (result.success) {
-        console.log('✅ EMAIL ENVIADO - Registro documentado creado');
-        return true;
-      } else {
-        console.error('❌ EMAIL FALLÓ - Sin registro documentado');
-        console.error('🔍 Error:', result.error);
-        return false; 
-      }
+      return result.success === true;
     } catch (error) {
-      console.error('❌ Error crítico enviando email:', error);
+      console.error('Error enviando el código OTP:', error);
       return false;
     }
   };
@@ -153,18 +137,18 @@ export function NovedadSaldoModal({
 
   const handleSave = () => {
     if (!amount || amount.trim() === '') {
-      alert('Por favor ingrese un monto válido');
+      toast({ title: "Monto inválido", description: "Por favor ingrese un monto válido", variant: "destructive" });
       return;
     }
 
     const numericAmount = parseInt(getNumericValue(amount));
     if (numericAmount <= 0) {
-      alert('El monto debe ser mayor a 0');
+      toast({ title: "Monto inválido", description: "El monto debe ser mayor a 0", variant: "destructive" });
       return;
     }
 
     if (!detail || detail.trim() === '') {
-      alert('Por favor ingrese un detalle');
+      toast({ title: "Detalle requerido", description: "Por favor ingrese un detalle", variant: "destructive" });
       return;
     }
 
@@ -177,20 +161,10 @@ export function NovedadSaldoModal({
   };
 
   const handleOtpAuthorization = async () => {
-    console.clear();
-    console.log('🚀 ============================================');
-    console.log('🚀 INICIANDO PROCESO DE AUTORIZACIÓN OTP');
-    console.log('🚀 ============================================');
-    
     try {
       const otp = generateOtp();
       setGeneratedOtp(otp);
-      console.log('🔐 CÓDIGO OTP GENERADO:', otp);
-      console.log('💡 USA ESTE CÓDIGO EN EL MODAL:', otp);
-      console.log('🎯 ✨ CÓDIGO PARA COPIAR:', otp);
-      console.log('📋 ↑ ↑ ↑ COPIA EL CÓDIGO DE ARRIBA ↑ ↑ ↑');
       
-      console.log('📧 Iniciando envío de email para registro documentado...');
       const result = await sendOtpEmailToUser(otp);
       
       if (result) {
@@ -200,10 +174,9 @@ export function NovedadSaldoModal({
           duration: 4000,
         });
       } else {
-        // ✅ CORREGIDO: Ya no cancela, solo muestra advertencia y avanza igual
         toast({
           title: "Código OTP generado",
-          description: "No se pudo enviar el email. Revisa la consola para el código.",
+          description: "No se pudo enviar el email. Contacta al administrador para obtener el código.",
           variant: "destructive",
           duration: 4000,
         });
@@ -230,7 +203,11 @@ export function NovedadSaldoModal({
     if (enteredOtp === generatedOtp) {
       setStep("validated");
     } else {
-      alert('Código OTP incorrecto. Verifique e intente nuevamente.');
+      toast({
+        title: "Código incorrecto",
+        description: "Código OTP incorrecto. Verifique e intente nuevamente.",
+        variant: "destructive",
+      });
       setOtpCode(["", "", "", "", "", ""]);
     }
   };
@@ -239,49 +216,45 @@ export function NovedadSaldoModal({
     if (isProcessing) return;
     setIsProcessing(true);
     try {
-      if (!userData?.uid || !ahorroSeleccionado?.id) {
-        alert('Error: Datos de usuario o cuenta no disponibles');
+      if (!userData?.id && !userData?.uid) {
+        toast({ title: "Error", description: "Datos de usuario no disponibles", variant: "destructive" });
+        return;
+      }
+      if (!ahorroSeleccionado?.id) {
+        toast({ title: "Error", description: "Datos de la cuenta de ahorro no disponibles", variant: "destructive" });
         return;
       }
 
-      console.log('🔍 userData completo:', userData);
-      console.log('🔍 userData.empresaref:', userData.empresaref);
-      console.log('🔍 userData.empresaId:', userData.empresaId);
-      console.log('🔍 userData.empresaId?.referencePath:', userData.empresaId?.referencePath);
-      console.log('🔍 ahorroSeleccionado completo:', ahorroSeleccionado);
-
       const numericAmount = parseInt(getNumericValue(amount));
-      
+      const documento = userData.nro_documento || userData.nit || userData.id || "";
+
       const transactionData = {
         amount: numericAmount,
         authorization: transactionId,
         transactionType: operationType === 'add' ? 'Depositado' : 'Withdrawal',
-        userRef: userData.uid,
+        userRef: userData.id || userData.uid,
         message: detail,
         savingtipe: ahorroSeleccionado.SavingsType || "Linea de Ahorro",
-        ahorrosRef: `/ahorros/${ahorroSeleccionado.id}`,
         ahorrosId: ahorroSeleccionado.id,
         amountFromTotal: numericAmount,
-        empresaId: ahorroSeleccionado.company?.id || userData.empresaref?.id || "",
+        empresaId: userData.empresa || "",
         userEmail: userData.email || "",
-        userName: userData.display_name || userData.name || "",
-        userPhone: userData.phone_number || userData.phone || "",
-        userIdNumber: userData.numeroDocumento || userData.document_number || userData.dni || userData.numero_documento || userData.id || "",
+        userName: userData.display_name || userData.nombre || "",
+        userPhone: userData.phone_number || userData.telefono1 || "",
+        userIdNumber: documento,
         withdrawalInfo: {
-          accountNumber: (userData.numeroDocumento || userData.document_number || userData.dni || userData.numero_documento || userData.id) + "-0",
+          accountNumber: documento ? `${documento}-0` : null,
           accountType: ahorroSeleccionado.SavingsType,
           bankName: "Alianza Capital"
         }
       };
-
-      console.log('🔍 transactionData final:', transactionData);
 
       await crearTransaccionNovedadSaldo(transactionData);
 
       await actualizarSaldoCuentaAhorro(
         ahorroSeleccionado.id, 
         numericAmount, 
-        operationType
+        operationType === 'add' ? 'add' : 'remove'
       );
 
       await enviarConfirmacionTransaccion({
@@ -294,8 +267,6 @@ export function NovedadSaldoModal({
       });
 
       setStep("success");
-      
-      console.log('✅ Novedad de saldo procesada exitosamente');
 
       setTimeout(() => {
         resetModal();
@@ -304,8 +275,12 @@ export function NovedadSaldoModal({
       }, 2000);
 
     } catch (error) {
-      console.error('❌ Error al finalizar novedad:', error);
-      alert('Error al procesar la novedad de saldo. Intente nuevamente.');
+      console.error('Error al finalizar novedad:', error);
+      toast({
+        title: "Error",
+        description: (error as any)?.message || "Error al procesar la novedad de saldo. Intente nuevamente.",
+        variant: "destructive",
+      });
     } finally {
       setIsProcessing(false);
     }

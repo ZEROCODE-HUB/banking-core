@@ -42,19 +42,36 @@ import { RetirosCDATSection } from "@/components/personas/RetirosCDATSection";
 import { EstadoGeneralCDATSection } from "@/components/personas/EstadoGeneralCDATSection";
 import { 
   obtenerTransaccionesPorEstadoRetiro,
-  obtenerDocumento
+  actualizarObservacionTransaccion
 } from "@/supabase/database";
+import { supabase } from "@/supabase/config";
 
 // Helpers locales
-const calcularTiempoTranscurrido = (timestamp: any): string => {
-  if (!timestamp) return "-";
-  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-  const diff = Date.now() - date.getTime();
-  if (diff < 0) return "00:00:00";
-  const h = Math.floor(diff / 3600000);
+// Duración calculada a partir de timestamps de la base de datos. No usa
+// intervalos: se recalcula solo al cargar o refrescar la tabla.
+const calcularDuracion = (inicio: any, fin?: any): string => {
+  if (!inicio) return "-";
+  const start = inicio?.toDate ? inicio.toDate().getTime() : new Date(inicio).getTime();
+  if (!Number.isFinite(start)) return "-";
+
+  let end: number;
+  if (fin) {
+    end = fin?.toDate ? fin.toDate().getTime() : new Date(fin).getTime();
+    if (!Number.isFinite(end)) return "-";
+  } else {
+    // Sin fecha de cierre (solicitud pendiente): foto del tiempo transcurrido
+    // al momento de cargar la tabla.
+    end = Date.now();
+  }
+
+  const diff = Math.max(0, end - start);
+  const totalHoras = Math.floor(diff / 3600000);
+  const dias = Math.floor(totalHoras / 24);
+  const h = totalHoras % 24;
   const m = Math.floor((diff % 3600000) / 60000);
   const s = Math.floor((diff % 60000) / 1000);
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  const reloj = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return dias > 0 ? `${dias}d ${reloj}` : reloj;
 };
 
 const formatFecha = (timestamp: any): string => {
@@ -72,29 +89,48 @@ const STATUS_MAP: Record<string, string> = {
   REJECTED: "Rechazado",
 };
 
-// Mock data for Retiro de Ahorros
-const mockRetiroAhorrosData = [
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", monto: "$ 10.000", entidad: "Bancolombia", fecha: "12/01/2025", estado: "Pendiente de retiro", tiempo: "24:59:32" },
-  { id: "#123123214", nombre: "María José González López", documento: "987654321", monto: "$ 25.000", entidad: "Banco de Bogotá", fecha: "13/01/2025", estado: "Completado", tiempo: "-" },
-  { id: "#123123215", nombre: "Carlos Eduardo Ruiz Parra", documento: "456789123", monto: "$ 50.000", entidad: "Davivienda", fecha: "14/01/2025", estado: "Rechazado", tiempo: "48:30:15" },
-];
+// Normaliza una fila de `transactions` a la forma que consumen la tabla y los modales.
+// Lee columnas snake_case reales de Supabase y expone los alias que espera la UI.
+const mapTransaccionRetiro = (t: any) => {
+  const withdrawal = t.withdrawal_info ?? {};
+  const banco = withdrawal.bankName || t.bank || "";
+  const fechaCierre = t.confirmation_date ?? t.last_updated ?? t.updated_at;
 
-// Mock data for Ahorros (Solicitudes)
-const mockAhorrosData = [
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", monto: "$ 10.000", entidad: "Bancolombia", fecha: "12/01/2025", estado: "Pendiente de retiro", tiempo: "24:59:32" },
-  { id: "#123123214", nombre: "Ana María Torres Silva", documento: "456789123", monto: "$ 15.000", entidad: "BBVA", fecha: "13/01/2025", estado: "Completado", tiempo: "-" },
-];
-
-// Mock data for CDAT
-const mockCDATData = [
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", documento: "123123123", inversion: "$ 10.000", fecha: "12/01/2025", estado: "Pendiente de depósito", tiempo: "24:59:32" },
-  { id: "#123123214", nombre: "Laura Patricia Mendoza Cruz", documento: "789123456", inversion: "$ 50.000", fecha: "13/01/2025", estado: "Aprobado", tiempo: "-" },
-];
+  return {
+    id: `#${String(t.docId).slice(-6).toUpperCase()}`,
+    docId: t.docId,
+    nombre: t.user_name || "",
+    documento: t.user_id_number || "",
+    monto: formatMonto(Number(t.amount) || 0),
+    montoRaw: Number(t.amount) || 0,
+    entidad: banco,
+    banco,
+    fecha: formatFecha(t.firebase_date),
+    fechaSolicitud: formatFecha(t.firebase_date),
+    fechaTransaccion: t.firebase_date,
+    fechaPago: t.confirmation_date ? formatFecha(t.confirmation_date) : "",
+    estado: STATUS_MAP[t.status] || t.status,
+    // Pendiente: tiempo transcurrido desde la fecha de solicitud (foto al cargar).
+    // Rechazado: duración hasta la última actualización registrada en la BD.
+    // Completado: no aplica.
+    tiempo: t.status === "PENDING"
+      ? calcularDuracion(t.firebase_date)
+      : t.status === "REJECTED"
+        ? calcularDuracion(t.firebase_date, fechaCierre)
+        : "-",
+    producto: t.savingtipe || "",
+    telefono: t.user_phone || "",
+    email: t.user_email || "",
+    numeroCuenta: withdrawal.accountNumber || "",
+    tipoCuenta: withdrawal.accountType || "",
+    canalPago: t.chanel_pay || "",
+    observaciones: t.observation || "",
+    transaccionId: t.authorization_ref || t.docId,
+  };
+};
 
 type MainMenuType = "Solicitudes" | "Retiros" | "Crédito" | "CDAT";
 type SolicitudesSubMenuType = "Ahorros" | "Créditos" | "CDAT";
-type AhorrosSubMenuType = "Retiro de ahorros";
-type CDATSubMenuType = "Crear CDAT" | "Legalización" | "Retiros" | "Estado general";
 
 export default function Solicitudes() {
   const navigate = useNavigate();
@@ -122,13 +158,16 @@ export default function Solicitudes() {
     : location.search.includes('seccion=cdat') ? "CDAT"
     : "Ahorros"; // default
   
-  const [activeSolicitudesSubMenu, setActiveSolicitudesSubMenu] = useState<SolicitudesSubMenuType>("Ahorros");
-  const [activeAhorrosSubMenu, setActiveAhorrosSubMenu] = useState<AhorrosSubMenuType>("Retiro de ahorros");
-  const [activeCDATSubMenu, setActiveCDATSubMenu] = useState<CDATSubMenuType>("Crear CDAT");
+  const [activeSolicitudesSubMenu, setActiveSolicitudesSubMenu] = useState<SolicitudesSubMenuType>(solicitudesSeccion);
+
+  // Keep the submenu state aligned with the URL (?seccion=ahorros|creditos|cdat)
+  useEffect(() => {
+    setActiveSolicitudesSubMenu(solicitudesSeccion);
+  }, [solicitudesSeccion]);
   
   // Filters and pagination
   const [statusFilter, setStatusFilter] = useState("PENDING");
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const itemsPerPage = 10;
   const [currentPage, setCurrentPage] = useState(1);
 
   // Solicitudes search
@@ -141,6 +180,7 @@ export default function Solicitudes() {
   const [retiroAhorrosEnriquecidos, setRetiroAhorrosEnriquecidos] = useState([]);
   const [solicitudesAhorrosData, setSolicitudesAhorrosData] = useState([]);
   const [solicitudesCDATData, setSolicitudesCDATData] = useState([]);
+  const [solicitudesCreditosData, setSolicitudesCreditosData] = useState([]);
   const [loadingRetiroAhorros, setLoadingRetiroAhorros] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   
@@ -159,6 +199,7 @@ export default function Solicitudes() {
   const isEstadoGeneral = location.search.includes("seccion=estado-general-cdat");
   const isRetiroAhorros = activeMainMenu === "Retiros";
   const isSolicitudes = activeMainMenu === "Solicitudes";
+  const isCDATView = isSolicitudes && solicitudesSeccion === "CDAT";
 
   // Page title logic
   const getPageTitle = () => {
@@ -196,23 +237,7 @@ export default function Solicitudes() {
     
     try {
       const raw = await obtenerTransaccionesPorEstadoRetiro();
-      const mapped = raw.map((t: any) => ({
-        id: `#${t.docId.slice(-6).toUpperCase()}`,
-        docId: t.docId,
-        nombre: t.userName || "",
-        documento: t.userIdNumber || "",
-        monto: formatMonto(t.amount),
-        entidad: t.withdrawalInfo?.bankName || "",
-        fecha: formatFecha(t.firebaseDate),
-        estado: STATUS_MAP[t.status] || t.status,
-        tiempo: t.status === "PENDING" ? calcularTiempoTranscurrido(t.firebaseDate) : "-",
-        producto: t.savingtipe || "Nómina",
-        telefono: t.userPhone || "",
-        email: t.userEmail || "",
-        numeroCuenta: t.withdrawalInfo?.accountNumber || "",
-        tipoCuenta: t.withdrawalInfo?.accountType || "",
-        transaccionId: t.authorization || t.docId,
-      }));
+      const mapped = raw.map(mapTransaccionRetiro);
       setRetiroAhorrosData(mapped);
       setRetiroAhorrosEnriquecidos(mapped);
     } catch (error) {
@@ -226,34 +251,70 @@ export default function Solicitudes() {
   const cargarTransaccionesSolicitudesAhorros = async () => {
     try {
       const raw = await obtenerTransaccionesPorEstadoRetiro();
-      const mapped = raw.map((t: any) => ({
-        id: `#${t.docId.slice(-6).toUpperCase()}`,
-        docId: t.docId,
-        nombre: t.userName || "",
-        documento: t.userIdNumber || "",
-        monto: formatMonto(t.amount),
-        entidad: t.withdrawalInfo?.bankName || "",
-        fecha: formatFecha(t.firebaseDate),
-        estado: STATUS_MAP[t.status] || t.status,
-        tiempo: t.status === "PENDING" ? calcularTiempoTranscurrido(t.firebaseDate) : "-",
-        producto: t.savingtipe || "Nómina",
-        telefono: t.userPhone || "",
-        email: t.userEmail || "",
-        numeroCuenta: t.withdrawalInfo?.accountNumber || "",
-        tipoCuenta: t.withdrawalInfo?.accountType || "",
-        transaccionId: t.authorization || t.docId,
-      }));
+      const mapped = raw.map(mapTransaccionRetiro);
       setSolicitudesAhorrosData(mapped);
     } catch (error) {
       console.error('Error al cargar solicitudes de ahorros:', error);
     }
   };
 
-  const cargarSolicitudesCDAT = async() => {
+  const cargarSolicitudesCDAT = async () => {
     try {
-      setSolicitudesCDATData(mockCDATData);
+      const { data, error } = await supabase
+        .from('cdats')
+        .select('id,id_cdat,idusuario,inversion,ea,tiempo,rendimiento,fecha_apertura,fecha_finalizacion,estado,nombreusuario,documentousuario,created_at');
+
+      if (error) throw error;
+
+      const mapped = (data ?? []).map((c: any) => ({
+        id: `#${String(c.id_cdat ?? c.id).slice(-6).toUpperCase()}`,
+        docId: c.id,
+        nombre: c.nombreusuario || "",
+        documento: c.documentousuario || "",
+        inversion: formatMonto(Number(c.inversion) || 0),
+        monto: formatMonto(Number(c.inversion) || 0),
+        entidad: "",
+        fecha: formatFecha(c.fecha_apertura ?? c.created_at),
+        estado: c.estado || "",
+        tiempo: c.tiempo ? `${c.tiempo} meses` : "-",
+      }));
+
+      setSolicitudesCDATData(mapped);
     } catch (error) {
       console.error('Error al cargar solicitudes CDAT:', error);
+      setSolicitudesCDATData([]);
+    }
+  };
+
+  const cargarSolicitudesCreditos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('credito_solicitado_empresa')
+        .select('id,id_field,nombre,documento,fecha_solicitud,empresa,estado,tipodecredito,monto_solicitud,created_at');
+
+      if (error) throw error;
+
+      const mapped = (data ?? []).map((c: any) => {
+        const fechaSolicitud = c.fecha_solicitud ?? c.created_at;
+        return {
+          id: `#${String(c.id_field ?? c.id).slice(-6).toUpperCase()}`,
+          docId: c.id,
+          nombre: c.nombre || "",
+          documento: c.documento || "",
+          monto: formatMonto(Number(c.monto_solicitud) || 0),
+          entidad: c.empresa || "",
+          fecha: formatFecha(fechaSolicitud),
+          estado: c.estado || "",
+          fechaTransaccion: fechaSolicitud,
+          tiempo: calcularDuracion(fechaSolicitud),
+          producto: c.tipodecredito || "",
+        };
+      });
+
+      setSolicitudesCreditosData(mapped);
+    } catch (error) {
+      console.error('Error al cargar solicitudes de crédito:', error);
+      setSolicitudesCreditosData([]);
     }
   };
 
@@ -265,9 +326,16 @@ export default function Solicitudes() {
       cargarTransaccionesSolicitudesAhorros();
     } else if (activeMainMenu === "Solicitudes" && activeSolicitudesSubMenu === "CDAT") {
       cargarSolicitudesCDAT();
+    } else if (activeMainMenu === "Solicitudes" && activeSolicitudesSubMenu === "Créditos") {
+      cargarSolicitudesCreditos();
     }
     // Reset filter, search and page when switching sections
-    setStatusFilter("PENDING");
+    // CDAT y Créditos no usan estados de retiro, así que arrancan sin filtro.
+    const nextFilter = activeMainMenu === "Solicitudes" &&
+      (activeSolicitudesSubMenu === "CDAT" || activeSolicitudesSubMenu === "Créditos")
+      ? "ALL"
+      : "PENDING";
+    setStatusFilter(nextFilter);
     setCurrentPage(1);
     setNumeroCedula("");
     setDocumentSearch("");
@@ -285,11 +353,20 @@ export default function Solicitudes() {
   };
 
   // Manual refresh function
-  const handleRefresh = () => {
-    if (activeMainMenu === "Retiros") {
-      cargarRetiroAhorros(true);
-    } else if (activeMainMenu === "Solicitudes" && activeSolicitudesSubMenu === "Ahorros") {
-      cargarTransaccionesSolicitudesAhorros();
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      if (activeMainMenu === "Retiros") {
+        await cargarRetiroAhorros();
+      } else if (activeMainMenu === "Solicitudes" && activeSolicitudesSubMenu === "Ahorros") {
+        await cargarTransaccionesSolicitudesAhorros();
+      } else if (activeMainMenu === "Solicitudes" && activeSolicitudesSubMenu === "CDAT") {
+        await cargarSolicitudesCDAT();
+      } else if (activeMainMenu === "Solicitudes" && activeSolicitudesSubMenu === "Créditos") {
+        await cargarSolicitudesCreditos();
+      }
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -318,29 +395,62 @@ export default function Solicitudes() {
 
   const handleObservaciones = (transaction) => {
     setSelectedTransaction(transaction);
-    setObservacionesTexto(transaction.observations || '');
+    setObservacionesTexto(transaction.observaciones || '');
     setShowObservacionesModal(true);
   };
 
+  const handleGuardarObservaciones = async () => {
+    if (!selectedTransaction?.docId) return;
+    try {
+      await actualizarObservacionTransaccion(selectedTransaction.docId, observacionesTexto);
+      setShowObservacionesModal(false);
+      await handleRefresh();
+    } catch (error) {
+      console.error('Error al guardar observaciones:', error);
+    }
+  };
+
   // Filter data based on current status filter and active section
+  const matchesStatusFilter = (estado: string) => {
+    if (statusFilter === "ALL") return true;
+    const value = (estado || "").toLowerCase();
+    if (statusFilter === "PENDING") return value.includes("pendiente") || value.includes("inicio");
+    if (statusFilter === "COMPLETED") {
+      return value.includes("complet") || value.includes("aprob") ||
+        value.includes("activo") || value.includes("finaliz");
+    }
+    if (statusFilter === "REJECTED") {
+      return value.includes("rechaz") || value.includes("eliminad");
+    }
+    return true;
+  };
+
+  const estadoBadgeClass = (estado: string) => {
+    const value = (estado || "").toLowerCase();
+    if (value.includes("complet") || value.includes("aprob") || value === "activo") {
+      return "bg-green-100 text-green-700";
+    }
+    if (value.includes("pendiente")) return "bg-yellow-100 text-yellow-700";
+    if (value.includes("rechaz") || value.includes("eliminad")) return "bg-red-100 text-red-700";
+    if (value.includes("finaliz")) return "bg-gray-100 text-gray-700";
+    return "bg-muted text-muted-foreground";
+  };
+
   const getFilteredData = () => {
-    let data;
+    let data: any[];
     if (isSolicitudes) {
-      if (solicitudesSeccion === "Créditos") return [];
-      if (solicitudesSeccion === "CDAT") return mockCDATData;
-      data = solicitudesAhorrosData;
+      if (solicitudesSeccion === "Créditos") {
+        data = solicitudesCreditosData;
+      } else if (solicitudesSeccion === "CDAT") {
+        data = solicitudesCDATData;
+      } else {
+        data = solicitudesAhorrosData;
+      }
     } else {
       // Retiros
       data = retiroAhorrosEnriquecidos.length > 0 ? retiroAhorrosEnriquecidos : retiroAhorrosData;
     }
-    if (statusFilter !== "ALL") {
-      const statusMap: Record<string, string> = {
-        "PENDING": "Pendiente de retiro",
-        "COMPLETED": "Completado",
-        "REJECTED": "Rechazado"
-      };
-      data = data.filter((item: any) => item.estado === statusMap[statusFilter]);
-    }
+    data = data.filter((item: any) => matchesStatusFilter(item.estado));
     if (documentSearch) {
       const q = documentSearch.toLowerCase();
       data = data.filter((item: any) =>
@@ -407,17 +517,28 @@ export default function Solicitudes() {
                 <div className="bg-card rounded-2xl overflow-hidden">
                   <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                     <h3 className="text-base font-semibold text-foreground">Solicitudes</h3>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-36 h-8 text-sm border-border">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">Todos</SelectItem>
-                        <SelectItem value="PENDING">Pendiente</SelectItem>
-                        <SelectItem value="COMPLETED">Completado</SelectItem>
-                        <SelectItem value="REJECTED">Rechazado</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-36 h-8 text-sm border-border">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">Todos</SelectItem>
+                          <SelectItem value="PENDING">Pendiente</SelectItem>
+                          <SelectItem value="COMPLETED">Completado</SelectItem>
+                          <SelectItem value="REJECTED">Rechazado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        title="Actualizar"
+                      >
+                        <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+                      </Button>
+                    </div>
                   </div>
                   <Table>
                     <TableHeader>
@@ -425,44 +546,49 @@ export default function Solicitudes() {
                         <TableHead>ID</TableHead>
                         <TableHead>Nombres y Apellidos</TableHead>
                         <TableHead>Numero de documento</TableHead>
-                        <TableHead>Monto</TableHead>
-                        <TableHead>Entidad bancaria</TableHead>
+                        <TableHead>{isCDATView ? "Inversión" : "Monto"}</TableHead>
+                        {!isCDATView && (
+                          <TableHead>
+                            {solicitudesSeccion === "Créditos" ? "Empresa" : "Entidad bancaria"}
+                          </TableHead>
+                        )}
                         <TableHead>Fecha de solicitud</TableHead>
                         <TableHead>Estado</TableHead>
-                        <TableHead>Tiempo</TableHead>
+                        <TableHead>{isCDATView ? "Plazo" : "Tiempo"}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {paginatedData.map((item, index) => (
-                        <TableRow key={index}>
+                        <TableRow key={item.docId || index}>
                           <TableCell className="font-medium">{item.id}</TableCell>
                           <TableCell>{item.nombre}</TableCell>
                           <TableCell>{item.documento}</TableCell>
-                          <TableCell>{item.monto}</TableCell>
-                          <TableCell>{item.entidad}</TableCell>
+                          <TableCell>{isCDATView ? item.inversion : item.monto}</TableCell>
+                          {!isCDATView && <TableCell>{item.entidad}</TableCell>}
                           <TableCell>{item.fecha}</TableCell>
                           <TableCell>
                             <span className={cn(
                               "px-3 py-1 rounded-full text-xs font-medium",
-                              item.estado === "Completado" && "bg-green-100 text-green-700",
-                              item.estado === "Pendiente de retiro" && "bg-yellow-100 text-yellow-700",
-                              item.estado === "Rechazado" && "bg-red-100 text-red-700"
+                              estadoBadgeClass(item.estado)
                             )}>
                               {item.estado}
                             </span>
                           </TableCell>
                           <TableCell>
-                            {item.estado !== "Completado" ? (
-                              <span className="flex items-center gap-1.5 text-sm">
-                                <span className="w-2 h-2 rounded-full bg-primary inline-block" />
-                                {item.tiempo}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
+                            <span className="text-sm">{item.tiempo}</span>
                           </TableCell>
                         </TableRow>
                       ))}
+                      {paginatedData.length === 0 && (
+                        <TableRow>
+                          <TableCell
+                            colSpan={isCDATView ? 7 : 8}
+                            className="py-8 text-center text-sm text-muted-foreground"
+                          >
+                            No hay registros para mostrar
+                          </TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
 
@@ -565,17 +691,28 @@ export default function Solicitudes() {
                 <div className="bg-card rounded-2xl overflow-hidden">
                   <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                     <h3 className="text-base font-semibold text-foreground">Retiros</h3>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-36 h-8 text-sm border-border">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">Todos</SelectItem>
-                        <SelectItem value="PENDING">Pendiente</SelectItem>
-                        <SelectItem value="COMPLETED">Completado</SelectItem>
-                        <SelectItem value="REJECTED">Rechazado</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-36 h-8 text-sm border-border">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">Todos</SelectItem>
+                          <SelectItem value="PENDING">Pendiente</SelectItem>
+                          <SelectItem value="COMPLETED">Completado</SelectItem>
+                          <SelectItem value="REJECTED">Rechazado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        title="Actualizar"
+                      >
+                        <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+                      </Button>
+                    </div>
                   </div>
                   <Table>
                     <TableHeader>
@@ -594,10 +731,10 @@ export default function Solicitudes() {
                     </TableHeader>
                     <TableBody>
                       {paginatedData.map((item, index) => (
-                        <TableRow key={index}>
+                        <TableRow key={item.docId || index}>
                           <TableCell className="font-medium">{item.id}</TableCell>
                           <TableCell>{item.nombre}</TableCell>
-                          <TableCell>{item.producto || "Nómina"}</TableCell>
+                          <TableCell>{item.producto || "-"}</TableCell>
                           <TableCell>{item.documento}</TableCell>
                           <TableCell>{item.monto}</TableCell>
                           <TableCell>{item.entidad}</TableCell>
@@ -605,44 +742,51 @@ export default function Solicitudes() {
                           <TableCell>
                             <span className={cn(
                               "px-3 py-1 rounded-full text-xs font-medium",
-                              item.estado === "Completado" && "bg-green-100 text-green-700",
-                              item.estado === "Pendiente de retiro" && "bg-yellow-100 text-yellow-700",
-                              item.estado === "Rechazado" && "bg-red-100 text-red-700"
+                              estadoBadgeClass(item.estado)
                             )}>
                               {item.estado}
                             </span>
                           </TableCell>
                           <TableCell>
-                            {item.estado !== "Completado" ? (
-                              <span className="flex items-center gap-1.5 text-sm">
-                                <span className="w-2 h-2 rounded-full bg-primary inline-block" />
-                                {item.tiempo}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
+                            <span className="text-sm">{item.tiempo}</span>
                           </TableCell>
                           <TableCell>
-                            {item.estado === "Pendiente de retiro" ? (
+                            <div className="flex items-center gap-1">
+                              {item.estado === "Pendiente de retiro" ? (
+                                <button
+                                  onClick={() => handleEstadoChange(item)}
+                                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/70"
+                                  title="Cambiar estado"
+                                >
+                                  <Settings className="h-4 w-4 text-muted-foreground" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleVerDetalle(item)}
+                                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/70"
+                                  title="Ver detalle"
+                                >
+                                  <Eye className="h-4 w-4 text-muted-foreground" />
+                                </button>
+                              )}
                               <button
-                                onClick={() => handleEstadoChange(item)}
+                                onClick={() => handleObservaciones(item)}
                                 className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/70"
-                                title="Cambiar estado"
+                                title="Observaciones"
                               >
-                                <Settings className="h-4 w-4 text-muted-foreground" />
+                                <MessageCircle className="h-4 w-4 text-muted-foreground" />
                               </button>
-                            ) : (
-                              <button
-                                onClick={() => handleVerDetalle(item)}
-                                className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/70"
-                                title="Ver detalle"
-                              >
-                                <Eye className="h-4 w-4 text-muted-foreground" />
-                              </button>
-                            )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
+                      {paginatedData.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
+                            {loadingRetiroAhorros ? "Cargando..." : "No hay registros para mostrar"}
+                          </TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
 
@@ -737,10 +881,7 @@ export default function Solicitudes() {
                 <Button variant="outline" onClick={() => setShowObservacionesModal(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={() => {
-                  // Save observations logic here
-                  setShowObservacionesModal(false);
-                }}>
+                <Button onClick={handleGuardarObservaciones}>
                   Guardar
                 </Button>
               </div>

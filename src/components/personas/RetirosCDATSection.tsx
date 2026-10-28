@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Loader2, Eye, Settings } from "lucide-react";
-import { obtenerColeccion, obtenerSubcoleccion } from "@/supabase/database";
-import { Timestamp } from "firebase/firestore";
+import { obtenerColeccion } from "@/supabase/database";
+import { supabase } from "@/supabase/config";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -117,6 +117,9 @@ const capitalizeFirst = (str: string) => {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 };
 
+// ID visible del retiro: `id_field` es el consecutivo de negocio, `id` el uuid.
+const getRetiroId = (retiro: any) => retiro?.id_field ?? retiro?.id ?? '';
+
 // Función para formatear moneda
 const formatearMoneda = (monto: number) => {
   if (!monto) return '$0';
@@ -127,20 +130,6 @@ const formatearMoneda = (monto: number) => {
     maximumFractionDigits: 0
   }).format(monto);
 };
-
-// Mock data for Retiro de CDAT
-const mockRetiroCDATData = [
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", producto: "CDAT", documento: "123123123", monto: "$ 10.000.00", entidad: "Bancolombia", fecha: "12/01/2025", estado: "Pendiente de retiro", tiempo: "24:59:32" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", producto: "CDAT", documento: "123123123", monto: "$ 10.000.00", entidad: "Bancolombia", fecha: "12/01/2025", estado: "Pendiente de retiro", tiempo: "24:59:32" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", producto: "CDAT", documento: "123123123", monto: "$ 10.000.00", entidad: "Bancolombia", fecha: "12/01/2025", estado: "Pendiente de retiro", tiempo: "24:59:32" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", producto: "CDAT", documento: "123123123", monto: "$ 10.000.00", entidad: "Bancolombia", fecha: "12/01/2025", estado: "Rechazado", tiempo: "16:20:09" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", producto: "CDAT", documento: "123123123", monto: "$ 10.000.00", entidad: "Bancolombia", fecha: "12/01/2025", estado: "Rechazado", tiempo: "16:20:09" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", producto: "CDAT", documento: "123123123", monto: "$ 10.000.00", entidad: "Bancolombia", fecha: "12/01/2025", estado: "Rechazado", tiempo: "16:20:09" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", producto: "CDAT", documento: "123123123", monto: "$ 10.000.00", entidad: "Bancolombia", fecha: "12/01/2025", estado: "Completado", tiempo: "-" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", producto: "CDAT", documento: "123123123", monto: "$ 10.000.00", entidad: "Bancolombia", fecha: "12/01/2025", estado: "Completado", tiempo: "-" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", producto: "CDAT", documento: "123123123", monto: "$ 10.000.00", entidad: "Bancolombia", fecha: "12/01/2025", estado: "Completado", tiempo: "-" },
-  { id: "#123123213", nombre: "David Isaac Alcántara Avalos", producto: "CDAT", documento: "123123123", monto: "$ 10.000.00", entidad: "Bancolombia", fecha: "12/01/2025", estado: "Completado", tiempo: "-" },
-];
 
 export function RetirosCDATSection() {
   const { toast } = useToast();
@@ -162,7 +151,7 @@ export function RetirosCDATSection() {
       retiro.nombreusuario?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       retiro.emailusuario?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       retiro.celusuario?.includes(searchTerm) ||
-      retiro.ID?.toString().includes(searchTerm) ||
+      getRetiroId(retiro)?.toString().includes(searchTerm) ||
       retiro.idCDAT?.toString().includes(searchTerm);
     
     const matchesStatus = statusFilter === "Todos" || 
@@ -183,48 +172,47 @@ export function RetirosCDATSection() {
     setCurrentPage(1);
   }, [searchTerm, statusFilter]);
 
-  // Cargar todos los retiros de todas las subcolecciones confirmacionretiros
+  // Cargar todos los retiros de `confirmacionretiros`, agrupados por CDAT
   const cargarRetiros = async () => {
     try {
       setIsLoading(true);
-      console.log('🔄 Cargando retiros de confirmacionretiros...');
-      
+
       // Primero obtener todos los CDATs
       const cdats = await obtenerColeccion('Cdats');
-      console.log('📊 CDATs encontrados:', cdats.length);
-      
+
       // Cargar retiros de todos los CDATs EN PARALELO
-      const promesasRetiros = cdats.map(async (cdat) => {
-        try {
-          const retiros = await obtenerSubcoleccion(`Cdats/${cdat.id}`, 'confirmacionretiros');
-          
-          // Filtrar solo los de tipo "retiro"
-          const retirosDeOperacion = retiros.filter(retiro => 
-            retiro.tipodeoperacion === "retiro"
-          );
-          
-          // Agregar información del CDAT a cada retiro
-          return retirosDeOperacion.map(retiro => ({
+      const promesasRetiros = (cdats as any[]).map(async (cdat) => {
+        const idCdat = cdat.id_cdat;
+        if (idCdat === null || idCdat === undefined) return [];
+
+        const { data, error } = await supabase
+          .from('confirmacionretiros')
+          .select('*')
+          .eq('id_cdat', idCdat);
+
+        if (error) {
+          console.warn(`Error cargando retiros del CDAT ${cdat.id}:`, error);
+          return [];
+        }
+
+        // Filtrar solo los de tipo "retiro"
+        return (data ?? [])
+          .filter((retiro: any) => retiro.tipodeoperacion === 'retiro')
+          .map((retiro: any) => ({
             ...retiro,
-            idCDAT: cdat.idCdat, // Directo desde el CDAT
+            idCDAT: idCdat,
             cdatInfo: {
               id: cdat.id,
-              idCdat: cdat.idCdat,
+              idCdat,
               nombreusuario: cdat.nombreusuario
             }
           }));
-          
-        } catch (error) {
-          console.warn(`Error cargando retiros del CDAT ${cdat.id}:`, error);
-          return []; // Retorna array vacío si hay error
-        }
       });
-      
+
       // Esperar todas las consultas y aplanar el resultado
       const resultados = await Promise.all(promesasRetiros);
       const todosLosRetiros = resultados.flat();
-      
-      console.log('✅ Total retiros cargados:', todosLosRetiros.length);
+
       setRetirosData(todosLosRetiros);
       
     } catch (error) {
@@ -266,7 +254,7 @@ export function RetirosCDATSection() {
   // Modal handlers
   const handleOpenCambiarEstado = (retiro: any) => {
     setSelectedSolicitud({
-      id: retiro.ID,
+      id: String(getRetiroId(retiro)),
       docId: retiro.id,
       subcoleccionPath: `Cdats/${retiro.cdatInfo?.id}/confirmacionretiros`,
       cdatId: retiro.cdatInfo?.id,
@@ -279,8 +267,8 @@ export function RetirosCDATSection() {
       numeroCuenta: retiro.cuentanumero || 'N/A',
       tipoCuenta: retiro.tipodecuenta || 'N/A',
       producto: 'CDAT',
-      transaccionId: retiro.ID,
-      fechaSolicitud: formatDate(retiro.fechaSolicitud),
+      transaccionId: String(getRetiroId(retiro)),
+      fechaSolicitud: formatDate(retiro.fecha_solicitud),
       monto: formatearMoneda(retiro.monto),
       estado: capitalizeFirst(retiro.estados),
     });
@@ -289,7 +277,7 @@ export function RetirosCDATSection() {
 
   const handleOpenDetalle = (retiro: any) => {
     setSelectedSolicitud({
-      id: retiro.ID,
+      id: String(getRetiroId(retiro)),
       nombre: retiro.nombreusuario,
       documento: retiro.nitusuario || 'N/A',
       telefono: retiro.celusuario || 'N/A',
@@ -298,11 +286,11 @@ export function RetirosCDATSection() {
       numeroCuenta: retiro.cuentanumero || 'N/A',
       tipoCuenta: retiro.tipodecuenta || 'N/A',
       producto: 'CDAT',
-      transaccionId: retiro.ID,
-      fechaSolicitud: formatDate(retiro.fechaSolicitud),
+      transaccionId: String(getRetiroId(retiro)),
+      fechaSolicitud: formatDate(retiro.fecha_solicitud),
       monto: formatearMoneda(retiro.monto),
       estado: capitalizeFirst(retiro.estados),
-      canalPago: retiro.numbredebanco || 'N/A',
+      canalPago: retiro.chanelpay || 'N/A',
       fechaPago: formatDate(retiro.fecharetiro),
       observaciones: retiro.observaciones || 'Sin observaciones registradas'
     });
@@ -429,13 +417,13 @@ export function RetirosCDATSection() {
               </TableRow>
             ) : (
               paginatedRetiros.map((retiro, index) => (
-                <TableRow key={retiro.ID || index} className="border-b border-border">
-                  <TableCell className="text-foreground">{retiro.ID}</TableCell>
+                <TableRow key={retiro.id || index} className="border-b border-border">
+                  <TableCell className="text-foreground">{getRetiroId(retiro)}</TableCell>
                   <TableCell className="text-foreground">{retiro.nombreusuario || '-'}</TableCell>
                   <TableCell className="text-foreground">CDAT {retiro.idCDAT}</TableCell>
                   <TableCell className="text-foreground">{formatearMoneda(retiro.monto)}</TableCell>
                   <TableCell className="text-foreground">{retiro.numbredebanco || '-'}</TableCell>
-                  <TableCell className="text-foreground">{formatDate(retiro.fechaSolicitud)}</TableCell>
+                  <TableCell className="text-foreground">{formatDate(retiro.fecha_solicitud)}</TableCell>
                   <TableCell className="text-foreground">{formatDate(retiro.fecharetiro)}</TableCell>
                   <TableCell>
                     <span className={cn(

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { CreditCard } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 interface VerificationCardProps {
   name: string;
@@ -24,9 +25,15 @@ interface VerificationCardProps {
 
 function VerificationCard({ name, documentNumber, registrationDate, userData }: VerificationCardProps) {
   const navigate = useNavigate();
+
+  const toIsoString = (value: any) => {
+    if (!value) return null;
+    const date = value.toDate ? value.toDate() : new Date(value);
+    return isNaN(date.getTime()) ? null : date.toISOString();
+  };
   
   const handleNavigation = () => {
-    // Limpiar userData para evitar problemas de clonación - solo primitivos
+    // Solo primitivos: el state de react-router no admite objetos complejos.
     const cleanUserData = {
       // IDs y referencias
       docId: userData?.docId || null,
@@ -43,23 +50,17 @@ function VerificationCard({ name, documentNumber, registrationDate, userData }: 
       nit: userData?.nit || null,
       
       // Documentos
-      tipoDocumento: userData?.tipoDocumento || null,
-      nroDocumento: userData?.nroDocumento || null,
-      ciudadExpedicion: userData?.ciudadExpedicion || null,
+      tipo_documento: userData?.tipo_documento || null,
+      nro_documento: userData?.nro_documento || null,
+      ciudad_expedicion: userData?.ciudad_expedicion || null,
       
-      // Fechas - convertir a strings si existen
-      fechaExpedicion: userData?.fechaExpedicion ? 
-        (userData.fechaExpedicion.toDate ? userData.fechaExpedicion.toDate().toISOString() : 
-         userData.fechaExpedicion.toString()) : null,
-      fecha_nacimiento: userData?.fecha_nacimiento ? 
-        (userData.fecha_nacimiento.toDate ? userData.fecha_nacimiento.toDate().toISOString() : 
-         userData.fecha_nacimiento.toString()) : null,
-      created_time: userData?.created_time ? 
-        (userData.created_time.toDate ? userData.created_time.toDate().toISOString() : 
-         userData.created_time.toString()) : null,
+      // Fechas - convertir a ISO strings si existen
+      fecha_expedicion: toIsoString(userData?.fecha_expedicion),
+      fecha_nacimiento: toIsoString(userData?.fecha_nacimiento),
+      created_time: toIsoString(userData?.created_time),
       
       // Personales
-      Genero: userData?.Genero || null,
+      genero: userData?.genero || null,
       ciudad_nacimiento: userData?.ciudad_nacimiento || null,
       ocupacion: userData?.ocupacion || null,
       
@@ -71,33 +72,34 @@ function VerificationCard({ name, documentNumber, registrationDate, userData }: 
       pais: userData?.pais || null,
       
       // Financieros - convertir a strings si son números
-      ingresos: userData?.ingresos ? userData.ingresos.toString() : null,
-      egresos: userData?.egresos ? userData.egresos.toString() : null,
-      activos: userData?.activos ? userData.activos.toString() : null,
-      patrimonio: userData?.patrimonio ? userData.patrimonio.toString() : null,
+      ingresos: userData?.ingresos != null ? String(userData.ingresos) : null,
+      egresos: userData?.egresos != null ? String(userData.egresos) : null,
+      activos: userData?.activos != null ? String(userData.activos) : null,
+      patrimonio: userData?.patrimonio != null ? String(userData.patrimonio) : null,
       
       // Booleans de declaración
-      figPPE: userData?.figPPE === true,
-      figRelativasPPE: userData?.figRelativasPPE === true,
+      flg_ppe: userData?.flg_ppe === true,
+      flg_relatives_ppe: userData?.flg_relatives_ppe === true,
       
       // Empresa
       empresa: userData?.empresa || null,
       empresaref: typeof userData?.empresaref === 'string' ? userData.empresaref : null,
       cargo: userData?.cargo || null,
-      tipoContrato: userData?.tipoContrato || null,
+      tipo_vinculacion: userData?.tipo_vinculacion || null,
       
       // Recursos
-      origenRecursos: userData?.origenRecursos || null,
+      funds_source: userData?.funds_source || null,
+      digite_otras_fuentes: userData?.digite_otras_fuentes || null,
       
       // Imágenes - solo URLs string
       fotofrontal: typeof userData?.fotofrontal === 'string' ? userData.fotofrontal : null,
       fototrasera: typeof userData?.fototrasera === 'string' ? userData.fototrasera : null,
       fotoperfil: typeof userData?.fotoperfil === 'string' ? userData.fotoperfil : null,
-      verificationPDF: typeof userData?.verificationPDF === 'string' ? userData.verificationPDF : null,
+      verification_pdf: typeof userData?.verification_pdf === 'string' ? userData.verification_pdf : null,
       
       // Estado
       confirmacion_verificado: userData?.confirmacion_verificado === true,
-      userType: userData?.userType || null
+      user_type: userData?.user_type || null
     };
     
     navigate("/personas/verificaciones/detalle", {
@@ -129,7 +131,7 @@ function VerificationCard({ name, documentNumber, registrationDate, userData }: 
 }
 
 export default function Verificaciones() {
-  const navigate = useNavigate();
+  const { toast } = useToast();
   const [usuariosVerificados, setUsuariosVerificados] = useState([]);
   const [searchValue, setSearchValue] = useState("");
   const [selectedType, setSelectedType] = useState("cedula");
@@ -156,20 +158,31 @@ export default function Verificaciones() {
   
   // Cargar usuarios verificados
   const cargarUsuariosVerificados = async () => {
+    setCargando(true);
     try {
       const { obtenerUsuariosVerificados } = await import('@/supabase/database');
       const usuarios = await obtenerUsuariosVerificados();
       setUsuariosVerificados(usuarios); // Mostrar todos los usuarios
+      setPaginaActual(1);
     } catch (error) {
       console.error('Error cargando usuarios verificados:', error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los usuarios",
+        variant: "destructive",
+      });
+    } finally {
+      setCargando(false);
     }
   };
   
   // Buscar usuario y mostrar resultados filtrados
   const buscarUsuario = async () => {
-    if (!searchValue.trim()) {
+    const valor = searchValue.trim();
+
+    if (!valor) {
       // Si no hay término de búsqueda, mostrar todos
-      cargarUsuariosVerificados();
+      await cargarUsuariosVerificados();
       return;
     }
     
@@ -179,22 +192,30 @@ export default function Verificaciones() {
       const { buscarUsuarioPorDocumento, buscarUsuarioPorEmail, buscarUsuarioPorCelular } = await import('@/supabase/database');
       
       if (selectedType === 'email') {
-        usuarios = await buscarUsuarioPorEmail(searchValue);
+        usuarios = await buscarUsuarioPorEmail(valor);
       } else if (selectedType === 'celular') {
-        usuarios = await buscarUsuarioPorCelular(searchValue);
-      } else if (selectedType === 'cedula') {
-        usuarios = await buscarUsuarioPorDocumento(searchValue);
+        usuarios = await buscarUsuarioPorCelular(valor);
+      } else {
+        usuarios = await buscarUsuarioPorDocumento(valor);
       }
       
       setUsuariosVerificados(usuarios);
       setPaginaActual(1); // Resetear a primera página
       
       if (usuarios.length === 0) {
-        alert(`No se encontraron usuarios con ese ${selectedType}`);
+        toast({
+          title: "Sin resultados",
+          description: "No se encontraron usuarios con ese criterio",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error('Error buscando usuario:', error);
-      alert('Error al buscar usuario');
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "No se pudo completar la búsqueda",
+        variant: "destructive",
+      });
     } finally {
       setCargando(false);
     }
@@ -249,7 +270,7 @@ export default function Verificaciones() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">Tipo de documento</label>
+              <label className="text-sm text-muted-foreground">Buscar por</label>
               <Select value={selectedType} onValueChange={setSelectedType}>
                 <SelectTrigger className="bg-background">
                   <SelectValue placeholder="Seleccionar" />
@@ -276,7 +297,12 @@ export default function Verificaciones() {
                     cargarUsuariosVerificados();
                   }
                 }}
-                onKeyPress={(e) => e.key === 'Enter' && buscarUsuario()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!cargando) buscarUsuario();
+                  }
+                }}
               />
             </div>
 
@@ -303,7 +329,7 @@ export default function Verificaciones() {
                 <VerificationCard 
                   key={user.id || index} 
                   name={user.display_name || user.nombre || 'Sin nombre'}
-                  documentNumber={user.nit || user.id || 'Sin documento'}
+                  documentNumber={user.nro_documento || user.nit || user.id || 'Sin documento'}
                   registrationDate={formatDate(user.created_time)}
                   userData={user}
                 />

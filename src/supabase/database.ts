@@ -1,21 +1,18 @@
 import { supabase } from './config';
 
 /**
- * Capa de compatibilidad Firestore -> Supabase
- * Replica src/firebase/database.js pero usando Postgres.
- * Tablas Supabase ya existentes (31 tablas vistas en SQL Editor):
- *  ahorros, transactions, user_profiles (≈ 'user'), empresa, cdats/cdat,
- *  confirmacionretiros, services, habilitar_credito, credito_solicitado_empresa, etc.
- * 
- * Firebase usaba camelCase (UserID, SavingsType, montoTotal) y DocumentReference.
- * Supabase usa snake_case (user_ref, savings_type, monto_total) y FK uuid.
- * Este archivo hace la traducción para que el admin siga funcionando sin data.
+ * Capa de acceso a datos sobre Supabase.
+ * Tablas: ahorros, transactions, user_profiles (≈ 'user'), empresa, cdats/cdat,
+ * confirmacionretiros, services, habilitar_credito, credito_solicitado_empresa, etc.
+ *
+ * Las filas se normalizan para conservar los alias de campo heredados
+ * (camelCase) que aún consumen algunas pantallas del admin.
  */
 
-// Mapeo colección Firebase -> tabla Supabase
+// Mapeo de nombre de colección heredado -> tabla Supabase
 const TABLE_MAP: Record<string, string> = {
-  // Firebase -> Supabase
-  'user': 'user_profiles',        // Firestore 'user' singular -> user_profiles
+  // nombre heredado -> tabla Supabase
+  'user': 'user_profiles',        // 'user' singular -> user_profiles
   'users': 'user_profiles',
   'empresa': 'empresa',
   'ahorros': 'ahorros',
@@ -30,9 +27,11 @@ const TABLE_MAP: Record<string, string> = {
   'credito_solicitado_empresa': 'credito_solicitado_empresa',
   // subcolección
   'confirmacionretiros': 'confirmacionretiros',
+  'RetirosCdat': 'retiros_cdat',
+  'retiros_cdat': 'retiros_cdat',
 };
 
-// Mapeo campos Firebase camelCase -> Supabase snake_case (solo los usados en el admin)
+// Mapeo de campos heredados camelCase -> columnas snake_case (solo los usados en el admin)
 const FIELD_MAP: Record<string, string> = {
   'UserID': 'user_ref',
   'SavingsType': 'savings_type',
@@ -44,7 +43,6 @@ const FIELD_MAP: Record<string, string> = {
   'idusuario': 'idusuario', // en cdats ya es snake igual
   'Idusuario': 'idusuario',
   'ahorrosId': 'ahorros_id',
-  'firebaseDate': 'firebase_date',
   'transactionType': 'transaction_type',
   'amountFromTotal': 'amount_from_total',
   'ServiceMainType': 'service_main_type',
@@ -60,7 +58,7 @@ function toSupabaseTable(collection: string): string {
   return TABLE_MAP[collection] ?? collection;
 }
 
-// Helper para normalizar filas: añade id y mantiene compatibilidad con código que espera .docId, .id, .uid (Firebase usaba uid) + aliases camelCase
+// Helper para normalizar filas: añade id y mantiene los alias heredados que espera la UI
 function normalizeRows(rows: any[]): any[] {
   return rows.map(r => {
     const base: any = {
@@ -70,7 +68,7 @@ function normalizeRows(rows: any[]): any[] {
       firestore_id: r.firestore_id,
       ...r,
     };
-    // Aliases camelCase para compatibilidad con código que espera Firestore (ConsultarUsuarioDetalle, Fondos, etc.)
+    // Alias camelCase heredados (ConsultarUsuarioDetalle, Fondos, etc.)
     // ahorros
     if (r.savings_type !== undefined) base.SavingsType = r.savings_type;
     if (r.monto_total !== undefined) base.montoTotal = r.monto_total;
@@ -88,7 +86,6 @@ function normalizeRows(rows: any[]): any[] {
     // transactions
     if (r.ahorros_id !== undefined) base.ahorrosId = r.ahorros_id;
     if (r.transaction_type !== undefined) base.transactionType = r.transaction_type;
-    if (r.firebase_date !== undefined) base.firebaseDate = r.firebase_date ? { toDate: () => new Date(r.firebase_date), seconds: Math.floor(new Date(r.firebase_date).getTime()/1000) } as any : r.firebase_date;
     // user_profiles
     if (r.display_name !== undefined) base.display_name = r.display_name;
     if (r.phone_number !== undefined) base.phone_number = r.phone_number;
@@ -155,8 +152,18 @@ export const buscarUsuarioPor = async (campo: string, valor: string) => {
     if ((error as any).code === '22P02') return null;
     throw error;
   }
-  if (!data) return null;
-  return { docId: data.id, id: data.id, uid: data.id, ...data };
+  if (data) return { docId: data.id, id: data.id, uid: data.id, ...data };
+  // El número de documento puede estar en `nit` o en `nro_documento`.
+  if (col === 'nit') {
+    const { data: alt } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('nro_documento', valor)
+      .limit(1)
+      .maybeSingle();
+    if (alt) return { docId: alt.id, id: alt.id, uid: alt.id, ...alt };
+  }
+  return null;
 };
 
 // Crear documento con soporte subcolección: 'cdats/{id}/confirmacionretiros' -> tabla confirmacionretiros con cdat_id
@@ -176,7 +183,7 @@ export const crearDocumento = async (rutaColeccion: string, datos: any) => {
     };
     if (table === 'confirmacionretiros') {
       payload.cdat_id = docId;
-      // replicar lógica firebase/database.js:144 ID aleatorio 10000-19999
+      // id aleatorio 10000-19999 cuando no viene uno
       // Postgres usa uuid/text, generamos id si no viene
       if (!payload.id) {
         payload.id = String(Math.floor(Math.random() * (19999 - 10000 + 1)) + 10000);
@@ -196,9 +203,21 @@ export const crearDocumento = async (rutaColeccion: string, datos: any) => {
 };
 
 export const obtenerSubcoleccion = async (rutaDocumento: string, nombreSubcoleccion: string) => {
-  // rutaDocumento = 'cdats/{id}' -> tabla confirmacionretiros where cdat_id = id
+  // rutaDocumento = 'cdats/{id}' -> tabla confirmacionretiros where id_cdat = cdats.id_cdat
   const table = toSupabaseTable(nombreSubcoleccion);
   const docId = rutaDocumento.split('/').pop()!;
+
+  if (table === 'confirmacionretiros') {
+    const { data: cdat } = await supabase.from('cdats').select('id_cdat').eq('id', docId).maybeSingle();
+    if (!cdat || (cdat as any).id_cdat == null) return [];
+    const { data, error } = await supabase
+      .from('confirmacionretiros')
+      .select('*')
+      .eq('id_cdat', (cdat as any).id_cdat);
+    if (error) throw error;
+    return normalizeRows(data ?? []);
+  }
+
   // intentar columna fk común: cdat_id
   const fkCandidates = ['cdat_id', 'parent_id', 'ahorros_id'];
   for (const fk of fkCandidates) {
@@ -211,7 +230,7 @@ export const obtenerSubcoleccion = async (rutaDocumento: string, nombreSubcolecc
   return normalizeRows(data ?? []);
 };
 
-// ========== FUNCIONES ESPECIFICAS (compat con src/firebase/database.js) ==========
+// ========== FUNCIONES ESPECIFICAS ==========
 
 export const obtenerEmpresaPorRef = async (refPath: any) => {
   try {
@@ -227,7 +246,7 @@ export const obtenerEmpresaPorRef = async (refPath: any) => {
 };
 
 export const obtenerAhorrosPorUsuario = async (userUID: string) => {
-  // Firebase: where('UserID','==',userUID) -> Supabase: user_ref = uid OR user_id = uid
+  // Buscar el ahorro por user_ref y, si no hay, por user_id
   const { data, error } = await supabase.from('ahorros').select('*').eq('user_ref', userUID);
   if (error) {
     // fallback a user_id text column vista en schema
@@ -242,7 +261,7 @@ export const obtenerAhorrosPorUsuario = async (userUID: string) => {
 };
 
 export const calcularTotalAhorrado = async (ahorrosId: string) => {
-  // Firebase: transactions where ahorrosId == id, transactionType==Depositado, status==APPROVED sum amount
+  // Suma de depósitos aprobados del ahorro
   const { data, error } = await supabase
     .from('transactions')
     .select('amount')
@@ -278,7 +297,7 @@ export const obtenerTransaccionesAhorro = async (ahorrosId: string) => {
 export const crearTransaccionNovedadSaldo = async (transactionData: any) => {
   const payload = {
     amount: transactionData.amount,
-    authorization: transactionData.authorization,
+    authorization_ref: transactionData.authorization,
     transaction_type: transactionData.transactionType,
     user_ref: transactionData.userRef,
     currency: 'COP',
@@ -307,7 +326,7 @@ export const crearTransaccionNovedadSaldo = async (transactionData: any) => {
 };
 
 export const actualizarSaldoCuentaAhorro = async (ahorrosId: string, monto: number, operationType: 'add' | 'remove') => {
-  // Firebase usaba increment() atómico. En Supabase hacemos RPC o select+update.
+  // Actualización de saldo: select + update
   const { data: current, error: fetchErr } = await supabase.from('ahorros').select('monto_total, total_saving_value, total_deposits').eq('id', ahorrosId).single();
   if (fetchErr) throw fetchErr;
   const delta = operationType === 'add' ? monto : -monto;
@@ -333,7 +352,7 @@ export const obtenerMovimientosCdat = async (cdatId: string) => {
   if (!cdat?.id_cdat) return [];
   const { data, error } = await supabase.from('confirmacionretiros').select('*').eq('id_cdat', (cdat as any).id_cdat);
   if (error) return [];
-  // ordenar por fecharetiro desc en JS (igual que firebase/database.js:422)
+  // ordenar por fecharetiro desc en JS
   const sorted = (data ?? []).sort((a: any, b: any) => {
     const dateA = a.fecharetiro ? new Date(a.fecharetiro) : new Date(0);
     const dateB = b.fecharetiro ? new Date(b.fecharetiro) : new Date(0);
@@ -374,10 +393,16 @@ export const buscarUsuarioPorCelular = async (celular: string) => {
 };
 
 export const buscarUsuarioPorDocumento = async (numeroDocumento: string) => {
-  let { data } = await supabase.from('user_profiles').select('*').eq('nit', numeroDocumento);
+  const { data } = await supabase.from('user_profiles').select('*').eq('nit', numeroDocumento);
   if (data && data.length > 0) return normalizeRows(data);
+  // El número de documento puede estar en `nit` o en `nro_documento`.
+  const { data: alt } = await supabase
+    .from('user_profiles')
+    .select('*')
+    .eq('nro_documento', numeroDocumento);
+  if (alt && alt.length > 0) return normalizeRows(alt);
   const isValidUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(numeroDocumento);
-  if (!isValidUuid) return normalizeRows(data ?? []);
+  if (!isValidUuid) return [];
   const { data: d2 } = await supabase.from('user_profiles').select('*').eq('id', numeroDocumento);
   return normalizeRows(d2 ?? []);
 };
@@ -393,6 +418,14 @@ export const obtenerTransaccionesPorEstadoRetiro = async (status: string | null 
     return db.getTime() - da.getTime();
   });
   return normalizeRows(sorted);
+};
+
+export const actualizarObservacionTransaccion = async (transactionId: string, observation: string) => {
+  const { error } = await supabase
+    .from('transactions')
+    .update({ observation, updated_at: new Date().toISOString() })
+    .eq('id', transactionId);
+  if (error) throw error;
 };
 
 export const actualizarEstadoTransaccion = async (transactionId: string, nuevoEstado: string, datosAdicionales: Record<string, any> = {}) => {

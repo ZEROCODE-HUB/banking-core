@@ -13,76 +13,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { UserInfoModal } from "@/components/personas/UserInfoModal";
-import { User, Phone, Mail, Building2, ArrowRight } from "lucide-react";
+import { Search } from "lucide-react";
 import { buscarUsuarioPor, obtenerEmpresaPorRef } from "@/supabase/database";
 import { useToast } from "@/hooks/use-toast";
 
-const tabs = [
-  "Ahorro",
-  "Crédito",
-  "CDAT",
-  "Comentarios",
-  "Vehículos",
-  "Historial",
-  "Información adicional",
+const SEARCH_TYPES = [
+  { value: "cedula", label: "Cédula" },
+  { value: "email", label: "Email" },
+  { value: "celular", label: "Celular" },
 ];
 
 export default function ConsultarUsuarios() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("Ahorro");
-  const [showUserModal, setShowUserModal] = useState(false);
   const [selectedType, setSelectedType] = useState("cedula");
   const [searchValue, setSearchValue] = useState("");
-  const [userData, setUserData] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
-
-  const handleSearch = async () => {
-    try {
-      setIsSearching(true);
-      const valor = searchValue;
-      const tipo = selectedType === 'email' ? 'Email' : selectedType === 'celular' ? 'Celular' : 'Cédula';
-      
-      if (!valor || !tipo) {
-        toast({ title: "Error", description: "Complete todos los campos", variant: "destructive" });
-        return;
-      }
-
-      let campo;
-      if (tipo === 'Email') campo = 'email';
-      else if (tipo === 'Celular') campo = 'phone_number';
-      else if (tipo === 'Cédula') campo = 'nit';
-
-      const usuario = await buscarUsuarioPor(campo, valor);
-      
-      if (usuario) {
-        let empresa = null;
-        if (usuario.empresa) {
-          empresa = await obtenerEmpresaPorRef(usuario.empresa);
-        }
-        
-        navigate('/personas/consultar/detalle', { 
-          state: { 
-            userData: JSON.parse(JSON.stringify(usuario)),
-            empresaData: empresa ? JSON.parse(JSON.stringify(empresa)) : null,
-            searchType: tipo,
-            searchValue: valor
-          } 
-        });
-      } else {
-        toast({ title: "Error", description: "Usuario no encontrado", variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleViewDetails = () => {
-    setShowUserModal(true);
-  };
 
   const getDynamicLabel = () => {
     switch (selectedType) {
@@ -90,8 +36,6 @@ export default function ConsultarUsuarios() {
         return "Ingrese el email";
       case "celular":
         return "Ingrese el celular";
-      case "cedula":
-        return "Ingrese el número de cédula";
       default:
         return "Ingrese el número de cédula";
     }
@@ -103,10 +47,66 @@ export default function ConsultarUsuarios() {
         return "Escribe el email";
       case "celular":
         return "Escribe el número de celular";
-      case "cedula":
-        return "Escribe el número de cédula";
       default:
         return "Escribe el número de cédula";
+    }
+  };
+
+  const handleSearch = async () => {
+    const valor = searchValue.trim();
+
+    if (!valor) {
+      toast({
+        title: "Error",
+        description: "Ingrese un valor para buscar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const campo =
+        selectedType === "email" ? "email" :
+        selectedType === "celular" ? "phone_number" :
+        "nit";
+      const searchType =
+        selectedType === "email" ? "Email" :
+        selectedType === "celular" ? "Celular" :
+        "Cédula";
+
+      const usuario = await buscarUsuarioPor(campo, valor);
+
+      if (!usuario) {
+        toast({
+          title: "Error",
+          description: "Usuario no encontrado",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      let empresa = null;
+      if (usuario.empresa) {
+        empresa = await obtenerEmpresaPorRef(usuario.empresa);
+      }
+
+      navigate("/personas/consultar/detalle", {
+        state: {
+          userData: JSON.parse(JSON.stringify(usuario)),
+          empresaData: empresa ? JSON.parse(JSON.stringify(empresa)) : null,
+          searchType,
+          searchValue: valor,
+        },
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "No se pudo completar la búsqueda",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -119,26 +119,29 @@ export default function ConsultarUsuarios() {
         <Card className="bg-card border-0 w-[280px] flex-shrink-0">
           <CardContent className="p-6 space-y-4">
             <div className="space-y-2">
-              <Label className="text-sm text-foreground font-normal">Tipo de documento</Label>
+              <Label className="text-sm text-foreground font-normal">Buscar por</Label>
               <Select value={selectedType} onValueChange={setSelectedType}>
                 <SelectTrigger className="bg-background border-border">
                   <SelectValue placeholder="Seleccionar" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="celular">Celular</SelectItem>
-                  <SelectItem value="cedula">Cédula</SelectItem>
+                  {SEARCH_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
               <Label className="text-sm text-foreground font-normal">{getDynamicLabel()}</Label>
-              <Input 
-                placeholder={getDynamicPlaceholder()} 
+              <Input
+                placeholder={getDynamicPlaceholder()}
                 className="bg-background border-border"
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !isSearching && handleSearch()}
               />
             </div>
 
@@ -152,87 +155,22 @@ export default function ConsultarUsuarios() {
           </CardContent>
         </Card>
 
-        {/* Right side - User Data or Placeholder */}
+        {/* Search help */}
         <Card className="bg-card border-0 flex-1 min-h-[200px]">
           <CardContent className="p-6">
-            {userData ? (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-foreground">Datos del cliente</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Nombre</p>
-                      <p className="text-sm font-medium">
-                        {userData.display_name || `${userData.nombre || ''} ${userData.apellido || ''}`.trim() || 'No disponible'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Email</p>
-                      <p className="text-sm font-medium">{userData.email || 'No disponible'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Teléfono</p>
-                      <p className="text-sm font-medium">{userData.phone_number || 'No disponible'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Identificación</p>
-                      <p className="text-sm font-medium">{userData.nroDocumento || 'No disponible'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Empresa</p>
-                      <p className="text-sm font-medium">{userData.empresa || 'No disponible'}</p>
-                    </div>
-                  </div>
-                </div>
-                <Button
-                  onClick={handleViewDetails}
-                  className="w-full mt-4 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
-                >
-                  Ver detalles completos
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
+            <div className="h-full min-h-[152px] flex flex-col items-center justify-center text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                <Search className="h-5 w-5 text-muted-foreground" />
               </div>
-            ) : (
-              <div className="h-full flex items-center justify-center text-muted-foreground">
-                <p>Realiza una búsqueda para ver los resultados</p>
-              </div>
-            )}
+              <p className="text-sm font-medium text-foreground">Busca un usuario para ver su detalle</p>
+              <p className="text-sm text-muted-foreground max-w-md">
+                Puedes buscar por cédula, correo electrónico o celular. Al encontrar una coincidencia
+                se abrirá el detalle del cliente con sus ahorros, CDAT, documentos e historial.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-3 mt-6">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-6 py-3 rounded-2xl text-sm font-medium transition-all ${
-              activeTab === tab
-                ? "bg-primary text-primary-foreground"
-                : "bg-card border-0 text-foreground hover:bg-muted"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {/* User Info Modal */}
-      <UserInfoModal open={showUserModal} onOpenChange={setShowUserModal} />
     </MainLayout>
   );
 }

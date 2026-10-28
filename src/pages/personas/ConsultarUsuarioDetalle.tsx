@@ -30,8 +30,7 @@ import { buscarUsuarioPor, obtenerEmpresaPorRef, obtenerAhorrosPorUsuario, calcu
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { User, Phone, Mail, Building2, ArrowRight, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Wallet, Eye } from "lucide-react";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/supabase/config";
+import { supabase } from "@/supabase/config";
 
 const tabs = [
   "Ahorro",
@@ -164,8 +163,9 @@ export default function ConsultarUsuarioDetalle() {
 
   const handleBuscar = async () => {
     try {
+      const valor = searchValue.trim();
       setIsSearching(true);
-      if (!searchValue || !searchType) {
+      if (!valor || !searchType) {
         toast({ title: "Error", description: "Complete todos los campos", variant: "destructive" });
         return;
       }
@@ -175,7 +175,12 @@ export default function ConsultarUsuarioDetalle() {
       else if (searchType === 'Celular') campo = 'phone_number';
       else if (searchType === 'Cédula') campo = 'nit';
 
-      const usuario = await buscarUsuarioPor(campo, searchValue);
+      if (!campo) {
+        toast({ title: "Error", description: "Tipo de búsqueda no válido", variant: "destructive" });
+        return;
+      }
+
+      const usuario = await buscarUsuarioPor(campo, valor);
       
       if (usuario) {
         let empresa = null;
@@ -184,6 +189,7 @@ export default function ConsultarUsuarioDetalle() {
         }
         setUserData(usuario);
         setEmpresaData(empresa);
+        setSearchValue(valor);
         
         // Cargar datos de ahorro
         if (usuario.uid) {
@@ -196,7 +202,11 @@ export default function ConsultarUsuarioDetalle() {
         toast({ title: "Error", description: "Usuario no encontrado", variant: "destructive" });
       }
     } catch (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "No se pudo completar la búsqueda",
+        variant: "destructive",
+      });
     } finally {
       setIsSearching(false);
     }
@@ -353,7 +363,7 @@ export default function ConsultarUsuarioDetalle() {
     try {
       let date;
       
-      // Si es un timestamp de Firebase
+      // Si trae un método toDate (timestamp heredado)
       if (dateValue && dateValue.toDate && typeof dateValue.toDate === 'function') {
         date = dateValue.toDate();
       }
@@ -385,10 +395,16 @@ export default function ConsultarUsuarioDetalle() {
     }
   };
 
-  const formatearFechaTransaccion = (firebaseDate) => {
-    if (!firebaseDate) return '';
-    const fecha = firebaseDate.toDate ? firebaseDate.toDate() : new Date(firebaseDate);
+  const formatearFechaTransaccion = (fechaTransaccion) => {
+    if (!fechaTransaccion) return '';
+    const fecha = fechaTransaccion.toDate ? fechaTransaccion.toDate() : new Date(fechaTransaccion);
     return fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  const formatDateTime = (value) => {
+    if (!value) return 'N/A';
+    const date = value?.toDate ? value.toDate() : new Date(value);
+    return isNaN(date.getTime()) ? 'N/A' : date.toLocaleString('es-CO');
   };
 
   // Filtrar transacciones del mes actual (solo para info en badge)
@@ -398,8 +414,8 @@ export default function ConsultarUsuarioDetalle() {
     const añoActual = ahora.getFullYear();
     
     return transacciones.filter(t => {
-      if (!t.firebaseDate) return false;
-      const fecha = t.firebaseDate.toDate ? t.firebaseDate.toDate() : new Date(t.firebaseDate);
+      if (!t.firebase_date) return false;
+      const fecha = t.firebase_date.toDate ? t.firebase_date.toDate() : new Date(t.firebase_date);
       return fecha.getMonth() === mesActual && fecha.getFullYear() === añoActual;
     });
   }, [transacciones]);
@@ -525,32 +541,30 @@ export default function ConsultarUsuarioDetalle() {
 
       let totalRetirado = 0;
       
-      // 4. Procesar en chunks de 10 (límite de Firestore para "whereIn")
+      // 4. Procesar en chunks de 10 para mantener las consultas pequeñas
       const chunkSize = 10;
       for (let i = 0; i < ahorrosIds.length; i += chunkSize) {
         const chunk = ahorrosIds.slice(i, i + chunkSize);
 
         try {
           // Consultar transacciones de retiro CON FILTRO DE FECHA
-          const querySnapshot = await getDocs(query(
-            collection(db, 'transactions'),
-            where('ahorrosId', 'in', chunk),
-            where('transactionType', '==', 'Withdrawal'),
-            where('status', 'in', ['APPROVED', 'PENDING']),
-            where('firebaseDate', '>=', fechaInicio),
-            where('firebaseDate', '<=', fechaFin)
-          ));
+          const { data: retiros, error } = await supabase
+            .from('transactions')
+            .select('amount')
+            .in('ahorros_id', chunk)
+            .eq('transaction_type', 'Withdrawal')
+            .in('status', ['APPROVED', 'PENDING'])
+            .gte('firebase_date', fechaInicio.toISOString())
+            .lte('firebase_date', fechaFin.toISOString());
 
-          // Sumar amounts
-          querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            const amount = data.amount;
-            if (typeof amount === 'number') {
-              totalRetirado += amount;
-            }
-          });
+          if (error) throw error;
 
-          console.log(`✅ Chunk ${i}-${Math.min(i + chunkSize, ahorrosIds.length)}: ${querySnapshot.docs.length} retiros`);
+          totalRetirado += (retiros ?? []).reduce(
+            (sum, row: any) => sum + (Number(row.amount) || 0),
+            0
+          );
+
+          console.log(`✅ Chunk ${i}-${Math.min(i + chunkSize, ahorrosIds.length)}: ${retiros?.length ?? 0} retiros`);
         } catch (error) {
           console.warn(`Error en chunk ${i}-${i + chunkSize}:`, error);
         }
@@ -632,22 +646,18 @@ export default function ConsultarUsuarioDetalle() {
   // 🆕 Calcular depósitos filtrados por fecha
   const calcularDepositosPorFecha = async (ahorroId, fechaInicio, fechaFin) => {
     try {
-      const transactionsRef = collection(db, 'transactions');
-      const q = query(
-        transactionsRef,
-        where('ahorrosId', '==', ahorroId),
-        where('transactionType', '==', 'Depositado'),
-        where('status', '==', 'APPROVED'),
-        where('firebaseDate', '>=', fechaInicio),
-        where('firebaseDate', '<=', fechaFin)
-      );
-      
-      const snapshot = await getDocs(q);
-      let total = 0;
-      snapshot.forEach(doc => {
-        total += doc.data().amount || 0;
-      });
-      return total;
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('ahorros_id', ahorroId)
+        .eq('transaction_type', 'Depositado')
+        .eq('status', 'APPROVED')
+        .gte('firebase_date', fechaInicio.toISOString())
+        .lte('firebase_date', fechaFin.toISOString());
+
+      if (error) throw error;
+
+      return (data ?? []).reduce((total, row: any) => total + (Number(row.amount) || 0), 0);
     } catch (error) {
       console.error('Error calculando depósitos:', error);
       return 0;
@@ -696,9 +706,9 @@ export default function ConsultarUsuarioDetalle() {
       
       // Obtener TODAS las cuentas de ahorro del usuario (sin filtro de monto)
       const ahorros = await obtenerAhorrosPorUsuario(userUID);
-      // Solo mostrar los que tienen AhorrosDocPdf1 con contenido (firmados)
-      const ahorrosFirmados = ahorros.filter((a: any) => a.AhorrosDocPdf1 && a.AhorrosDocPdf1.trim() !== '');
-      
+      // Solo mostrar los que tienen el PDF de ahorro con contenido (firmados)
+      const ahorrosFirmados = ahorros.filter((a: any) => a.ahorros_doc_pdf1 && a.ahorros_doc_pdf1.trim() !== '');
+
       if (ahorrosFirmados.length > 0) {
         setAhorrosData(ahorrosFirmados);
         
@@ -716,8 +726,8 @@ export default function ConsultarUsuarioDetalle() {
           const beneficios = calcularBeneficiosPorFecha(ahorro.transactions, fechaInicio, fechaFin);
           totalBenef += beneficios;
           
-          // 🔄 SALDO TOTAL: Suma de montoTotal (como antes, SIN filtro de fecha)
-          totalSaldo += Number(ahorro.montoTotal || 0);
+          // 🔄 SALDO TOTAL: Suma de monto_total (como antes, SIN filtro de fecha)
+          totalSaldo += Number(ahorro.monto_total || 0);
         }
         
         console.log('📊 Totales calculados:', {
@@ -730,12 +740,15 @@ export default function ConsultarUsuarioDetalle() {
         setTotalBeneficios(totalBenef);
         setSaldoTotal(totalSaldo); // 👈 Suma directa de montoTotal
       } else {
+        setAhorrosData([]);
+        setAhorroSeleccionado(null);
         setTotalAhorrado(0);
         setTotalBeneficios(0);
         setSaldoTotal(0);
       }
     } catch (error) {
       console.error("Error al cargar datos de ahorro:", error);
+      setAhorrosData([]);
       setTotalAhorrado(0);
       setTotalBeneficios(0);
       setSaldoTotal(0);
@@ -745,47 +758,21 @@ export default function ConsultarUsuarioDetalle() {
   const cargarDatosCdat = async (userUID) => {
     try {
       const cdats = await obtenerCdatsPorUsuario(userUID);
-      console.log('CDATs obtenidos:', cdats);
-      
+
       setCdatsData(cdats);
-      
+
       if (cdats.length > 0) {
         let totalInv = 0;
         let totalGan = 0;
-        
+
         cdats.forEach((cdat) => {
-          console.log('Procesando CDAT:', {
-            id: cdat.id,
-            Inversion: cdat.Inversion,
-            InversionTipo: typeof cdat.Inversion,
-            Ganancias: cdat.Ganancias,
-            GananciasTipo: typeof cdat.Ganancias
-          });
-          
-          // Convertir a número, manejando tanto number como string
-          const inversion = Number(cdat.Inversion) || 0;
-          const ganancias = Number(cdat.Ganancias) || 0;
-          
-          totalInv += inversion;
-          totalGan += ganancias;
-          
-          console.log('Acumulado:', {
-            inversionActual: inversion,
-            totalInvHastaAhora: totalInv,
-            gananciasActual: ganancias,
-            totalGanHastaAhora: totalGan
-          });
+          totalInv += Number(cdat.inversion) || 0;
+          totalGan += Number(cdat.ganancias) || 0;
         });
-        
-        console.log('TOTALES FINALES:', {
-          totalInversion: totalInv,
-          totalGanancias: totalGan
-        });
-        
+
         setTotalCdatInversion(totalInv);
         setTotalCdatGanancias(totalGan);
       } else {
-        console.log('No se encontraron CDATs para este usuario');
         setTotalCdatInversion(0);
         setTotalCdatGanancias(0);
       }
@@ -823,18 +810,6 @@ export default function ConsultarUsuarioDetalle() {
     return traducciones[estado] || estado;
   };
 
-  const obtenerBanco = (transaccion) => {
-    if (transaccion.isNovedadSaldo || transaccion.isAhorroCdat) {
-      return 'Alianza Capital';
-    }
-    const banco = transaccion.bank;
-    return banco === 'Alianza Capital' ? 'Transferencia interna' : (banco || 'N/A');
-  };
-
-  const esTransferenciaInterna = (transaccion) => {
-    return transaccion.isNovedadSaldo || transaccion.isAhorroCdat || transaccion.bank === 'Alianza Capital';
-  };
-
   // ═══════════════════════════════════════════════════════════
   // FUNCIONES PARA CDAT
   // ═══════════════════════════════════════════════════════════
@@ -867,9 +842,9 @@ export default function ConsultarUsuarioDetalle() {
     if (filtroCdatEstado === 'todos') {
       return cdatsData;
     } else if (filtroCdatEstado === 'activos') {
-      return cdatsData.filter(c => c.Estado === 'Activo');
+      return cdatsData.filter(c => c.estado === 'Activo');
     } else if (filtroCdatEstado === 'finalizados') {
-      return cdatsData.filter(c => c.Estado === 'Finalizado');
+      return cdatsData.filter(c => c.estado === 'Finalizado');
     }
     return cdatsData;
   }, [cdatsData, filtroCdatEstado]);
@@ -878,14 +853,14 @@ export default function ConsultarUsuarioDetalle() {
   const contadorCdats = useMemo(() => {
     return {
       todos: cdatsData.length,
-      activos: cdatsData.filter(c => c.Estado === 'Activo').length,
-      finalizados: cdatsData.filter(c => c.Estado === 'Finalizado').length
+      activos: cdatsData.filter(c => c.estado === 'Activo').length,
+      finalizados: cdatsData.filter(c => c.estado === 'Finalizado').length
     };
   }, [cdatsData]);
 
   // Calcular total a recibir
   const calcularTotalRecibir = (cdat) => {
-    return (cdat.Inversion || 0) + (cdat.Ganancias || 0);
+    return (Number(cdat.inversion) || 0) + (Number(cdat.ganancias) || 0);
   };
 
   // Traducir tipo de operación
@@ -942,7 +917,7 @@ export default function ConsultarUsuarioDetalle() {
         <Card className="bg-card border-0 w-[280px] flex-shrink-0">
           <CardContent className="p-6 space-y-4">
             <div className="space-y-2">
-              <Label className="text-sm text-foreground font-normal">Tipo de documento</Label>
+              <Label className="text-sm text-foreground font-normal">Buscar por</Label>
               <Select value={searchType} onValueChange={setSearchType}>
                 <SelectTrigger className="bg-background border-border">
                   <SelectValue placeholder="Seleccionar" />
@@ -1036,7 +1011,7 @@ export default function ConsultarUsuarioDetalle() {
                 <div>
                   <p className="text-xs text-muted-foreground">Empresa</p>
                   <p className="text-sm font-medium text-foreground">
-                    {ahorrosData?.find(a => a.SavingsType === "Linea de Ahorro de nómina")?.CompayName || empresaData?.razonsocial || 'Sin empresa'}
+                    {ahorrosData?.find(a => a.savings_type === "Linea de Ahorro de nómina")?.compay_name || empresaData?.razonsocial || 'Sin empresa'}
                   </p>
                 </div>
               </div>
@@ -1294,7 +1269,7 @@ export default function ConsultarUsuarioDetalle() {
               <div className="flex items-center gap-6 mb-6">
                 <div>
                   <h4 className="text-base font-medium text-foreground">Línea de {ahorroSeleccionado.SavingsType}</h4>
-                  <p className="text-sm text-muted-foreground">Fecha de apertura: {formatDate(ahorroSeleccionado.fechacreacion)}  |  Nro: {ahorroSeleccionado.EA || 9}% E.A</p>
+                  <p className="text-sm text-muted-foreground">Fecha de apertura: {formatDate(ahorroSeleccionado.fechacreacion)}  |  Nro: {ahorroSeleccionado.ea || 9}% E.A</p>
                 </div>
                 {user?.userType === "CRM SuperAdmin" && (
                   <button 
@@ -1310,7 +1285,7 @@ export default function ConsultarUsuarioDetalle() {
                     <p className="text-xs text-muted-foreground">Mi saldo</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-xl font-bold text-foreground">{ahorroSeleccionado.EA || 9}% E.A</p>
+                    <p className="text-xl font-bold text-foreground">{ahorroSeleccionado.ea || 9}% E.A</p>
                     <p className="text-xs text-muted-foreground">Efectivo anual</p>
                   </div>
                   <div className="text-center">
@@ -1332,7 +1307,7 @@ export default function ConsultarUsuarioDetalle() {
               {ahorroSeleccionado?.SavingsType === "Linea de Ahorro de nómina" && (
                 <div className="flex items-center gap-4 mb-3">
                   <div className="text-center">
-                    <p className="text-base font-bold text-foreground">{formatAmount(ahorroSeleccionado?.Total_Savings_PreApproval || 0)}</p>
+                    <p className="text-base font-bold text-foreground">{formatAmount(ahorroSeleccionado?.total_savings_pre_approval || 0)}</p>
                     <p className="text-xs text-muted-foreground">Mi saldo Ahorrado</p>
                   </div>
                 </div>
@@ -1393,7 +1368,7 @@ export default function ConsultarUsuarioDetalle() {
                             onClick={() => setTransaccionExpandida(isExpanded ? null : transaccion.id)}
                           >
                             <span className="flex-1 text-sm text-muted-foreground">
-                              {formatearFechaTransaccion(transaccion.firebaseDate)}
+                              {formatearFechaTransaccion(transaccion.firebase_date)}
                             </span>
                             <span className={`flex-1 text-sm font-medium ${
                               transaccion.transactionType === 'Withdrawal' ? "text-foreground" : "text-primary"
@@ -1409,10 +1384,10 @@ export default function ConsultarUsuarioDetalle() {
                               {traducirEstado(transaccion.status)}
                             </span>
                             <span className="flex-1 text-sm text-muted-foreground text-right">
-                              {transaccion.isAhorroCdat ? 'CDAT' : 
-                               transaccion.isNovedadSaldo ? 'Transferencia interna' : 
+                              {transaccion.is_ahorro_cdat ? 'CDAT' : 
+                               transaccion.is_novedad_saldo ? 'Transferencia interna' : 
                                transaccion.transactionType === 'Depositado' ? 'PSE' : 
-                               transaccion.transactionType === 'Withdrawal' ? (transaccion.withdrawalInfo?.bankName || transaccion.bank || 'Transferencia interna') : 
+                               transaccion.transactionType === 'Withdrawal' ? (transaccion.withdrawal_info?.bankName || transaccion.bank || 'Transferencia interna') : 
                                (transaccion.bank || 'Transferencia interna')}
                             </span>
                             <button className="ml-4 p-1 hover:bg-muted rounded">
@@ -1427,16 +1402,16 @@ export default function ConsultarUsuarioDetalle() {
                           {/* Detalles expandibles */}
                           {isExpanded && (
                             <div className="px-4 pb-4 pt-2 bg-muted/30 border-t border-border">
-                              {(transaccion.transactionType === 'Depositado' || transaccion.isNovedadSaldo === true) ? (
+                              {(transaccion.transactionType === 'Depositado' || transaccion.is_novedad_saldo === true) ? (
                                 // SOLO 3 CAMPOS - DEPOSITADO O NOVEDAD DE SALDO
                                 <div className="grid grid-cols-3 gap-4">
                                   <div>
                                     <p className="text-xs text-muted-foreground">ID de autorización (CUS)</p>
-                                    <p className="text-sm font-medium text-foreground">{transaccion.authorization || 'N/A'}</p>
+                                    <p className="text-sm font-medium text-foreground">{transaccion.authorization_ref || 'N/A'}</p>
                                   </div>
                                   <div>
                                     <p className="text-xs text-muted-foreground">Banco</p>
-                                    <p className="text-sm font-medium text-foreground">{transaccion.isNovedadSaldo || transaccion.isAhorroCdat ? 'Alianza Capital' : (transaccion.withdrawalInfo?.bankName || transaccion.bank || 'N/A')}</p>
+                                    <p className="text-sm font-medium text-foreground">{transaccion.is_novedad_saldo || transaccion.is_ahorro_cdat ? 'Alianza Capital' : (transaccion.withdrawal_info?.bankName || transaccion.bank || 'N/A')}</p>
                                   </div>
                                   <div>
                                     <p className="text-xs text-muted-foreground">Detalle</p>
@@ -1450,15 +1425,15 @@ export default function ConsultarUsuarioDetalle() {
                                   <div className="grid grid-cols-3 gap-4 mb-4">
                                     <div>
                                       <p className="text-xs text-muted-foreground">ID de Transacción</p>
-                                      <p className="text-sm font-medium text-foreground">{transaccion.authorization || 'N/A'}</p>
+                                      <p className="text-sm font-medium text-foreground">{transaccion.authorization_ref || 'N/A'}</p>
                                     </div>
                                     <div>
                                       <p className="text-xs text-muted-foreground">Número de cuenta</p>
-                                      <p className="text-sm font-medium text-foreground">{transaccion.withdrawalInfo?.accountNumber || 'N/A'}</p>
+                                      <p className="text-sm font-medium text-foreground">{transaccion.withdrawal_info?.accountNumber || 'N/A'}</p>
                                     </div>
                                     <div>
                                       <p className="text-xs text-muted-foreground">Tipo de cuenta</p>
-                                      <p className="text-sm font-medium text-foreground">{transaccion.withdrawalInfo?.accountType || 'Cuenta de ahorros'}</p>
+                                      <p className="text-sm font-medium text-foreground">{transaccion.withdrawal_info?.accountType || 'Cuenta de ahorros'}</p>
                                     </div>
                                     <div>
                                       <p className="text-xs text-muted-foreground">Estado del movimiento</p>
@@ -1466,11 +1441,11 @@ export default function ConsultarUsuarioDetalle() {
                                     </div>
                                     <div>
                                       <p className="text-xs text-muted-foreground">Nombre y Apellidos</p>
-                                      <p className="text-sm font-medium text-foreground">{transaccion.userName || 'N/A'}</p>
+                                      <p className="text-sm font-medium text-foreground">{transaccion.user_name || 'N/A'}</p>
                                     </div>
                                     <div>
                                       <p className="text-xs text-muted-foreground">Fecha pago retiro</p>
-                                      <p className="text-sm font-medium text-foreground">{formatearFechaTransaccion(transaccion.firebaseDate)}</p>
+                                      <p className="text-sm font-medium text-foreground">{formatearFechaTransaccion(transaccion.firebase_date)}</p>
                                     </div>
                                   </div>
                                   
@@ -1621,16 +1596,16 @@ export default function ConsultarUsuarioDetalle() {
                           <span className="text-sm font-medium text-foreground">CDAT</span>
                           <span className="text-muted-foreground">|</span>
                           <span className="text-xs text-muted-foreground">
-                            {cdat.isAhorroCdat ? `INV-AP#${cdat.idCdat}` : `INV-CB#${cdat.idCdat}`}
+                            {cdat.is_ahorro_cdat ? `INV-AP#${cdat.id_cdat}` : `INV-CB#${cdat.id_cdat}`}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            cdat.Estado === "Activo" 
+                            cdat.estado === "Activo" 
                               ? "bg-green-100 text-green-700" 
                               : "bg-orange-100 text-orange-700"
                           }`}>
-                            {cdat.Estado}
+                            {cdat.estado || 'Sin estado'}
                           </span>
                           <button
                             onClick={() => handleViewCdatDetails(cdat)}
@@ -1665,18 +1640,16 @@ export default function ConsultarUsuarioDetalle() {
                           </div>
                           <div className="bg-muted/50 rounded-lg p-3 text-center">
                             <p className="text-xs text-muted-foreground mb-0.5">Inversión</p>
-                            <p className="text-base font-bold text-foreground">{formatAmount(cdat.Inversion || 0)}</p>
+                            <p className="text-base font-bold text-foreground">{formatAmount(Number(cdat.inversion) || 0)}</p>
                           </div>
                           <div className="bg-muted/50 rounded-lg p-3 text-center">
                             <p className="text-xs text-muted-foreground mb-0.5">Ganancias</p>
-                            <p className="text-base font-bold text-foreground">{formatAmount(cdat.Ganancias || 0)}</p>
+                            <p className="text-base font-bold text-foreground">{formatAmount(Number(cdat.ganancias) || 0)}</p>
                           </div>
                           <div className="bg-muted/50 rounded-lg p-3 text-center">
                             <p className="text-xs text-muted-foreground mb-0.5">Fecha de vencimiento</p>
                             <p className="text-base font-bold text-foreground">
-                              {cdat.FechaFinalizacion 
-                                ? cdat.FechaFinalizacion.toDate().toLocaleDateString('es-CO')
-                                : 'N/A'}
+                              {cdat.fecha_finalizacion ? formatDate(cdat.fecha_finalizacion) : 'N/A'}
                             </p>
                           </div>
                         </div>
@@ -1691,7 +1664,7 @@ export default function ConsultarUsuarioDetalle() {
                         setExpandedMovimientos(prev => 
                           prev.includes(key) ? prev.filter(i => i !== key) : [...prev, key]
                         );
-                        if (!isMovimientosExpanded && cdatSeleccionado?.id !== cdat.id) {
+                        if (!isMovimientosExpanded) {
                           seleccionarCdat(cdat);
                         }
                       }}
@@ -1705,7 +1678,7 @@ export default function ConsultarUsuarioDetalle() {
                     </div>
 
                     {/* Expanded Movimientos */}
-                    {isMovimientosExpanded && movimientosCdat.length > 0 && (
+                    {isMovimientosExpanded && cdatSeleccionado?.id === cdat.id && movimientosCdat.length > 0 && (
                       <div className="px-4 pb-4">
                         <p className="text-xs font-medium text-primary mb-2">Este mes</p>
                         <div className="space-y-1.5">
@@ -1720,9 +1693,7 @@ export default function ConsultarUsuarioDetalle() {
                                   )}
                                 >
                                   <span className="flex-1 text-sm text-muted-foreground">
-                                    {mov.fecharetiro 
-                                      ? mov.fecharetiro.toDate().toLocaleString('es-CO')
-                                      : 'N/A'}
+                                    {formatDateTime(mov.fecharetiro)}
                                   </span>
                                   <span className={`flex-1 text-sm font-medium ${
                                     mov.tipodeoperacion === 'saliente' ? "text-foreground" : "text-primary"
@@ -1749,18 +1720,16 @@ export default function ConsultarUsuarioDetalle() {
                                     <div className="grid grid-cols-4 gap-4 mb-2">
                                       <div>
                                         <p className="text-xs text-muted-foreground">ID de transacción</p>
-                                        <p className="text-sm font-medium text-foreground">{mov.ID || mov.id}</p>
+                                        <p className="text-sm font-medium text-foreground">{mov.id_field ?? mov.id}</p>
                                       </div>
                                       <div>
                                         <p className="text-xs text-muted-foreground">Banco</p>
-                                        <p className="text-sm font-medium text-foreground">{mov.nombredelbanc || '-'}</p>
+                                        <p className="text-sm font-medium text-foreground">{mov.numbredebanco || '-'}</p>
                                       </div>
                                       <div>
                                         <p className="text-xs text-muted-foreground">Fecha</p>
                                         <p className="text-sm font-medium text-foreground">
-                                          {mov.fecharetiro 
-                                            ? mov.fecharetiro.toDate().toLocaleDateString('es-CO')
-                                            : '-'}
+                                          {formatDate(mov.fecharetiro)}
                                         </p>
                                       </div>
                                       <div>
@@ -1807,7 +1776,7 @@ export default function ConsultarUsuarioDetalle() {
                     <div key={ahorro.id} className="bg-card rounded-lg p-4 border border-border">
                       <h5 className="font-medium text-foreground mb-2">{ahorro.SavingsType}</h5>
                       <p className="text-xs text-muted-foreground mb-3">Línea de {ahorro.SavingsType}</p>
-                      <p className="text-xs text-muted-foreground mb-3">Nro: {ahorro.EA || 9}% E.A</p>
+                      <p className="text-xs text-muted-foreground mb-3">Nro: {ahorro.ea || 9}% E.A</p>
                       <div className="flex flex-col gap-2">
                         <button 
                           onClick={() => window.open(ahorro.AhorrosDocPdf1, '_blank')}
@@ -1835,8 +1804,8 @@ export default function ConsultarUsuarioDetalle() {
                   {cdatsData.filter(cdat => cdat.firma).map((cdat, index) => (
                     <div key={cdat.id} className="bg-card rounded-lg p-4 border border-border">
                       <h5 className="font-medium text-foreground mb-2">CDAT</h5>
-                      <p className="text-xs text-muted-foreground mb-3">Inversión: {formatAmount(cdat.Inversion)}</p>
-                      <p className="text-xs text-muted-foreground mb-3">{cdat.EA}% E.A</p>
+                      <p className="text-xs text-muted-foreground mb-3">Inversión: {formatAmount(Number(cdat.inversion) || 0)}</p>
+                      <p className="text-xs text-muted-foreground mb-3">{cdat.ea}% E.A</p>
                       <div className="flex flex-col gap-2">
                         <button 
                           onClick={() => window.open(cdat.firma, '_blank')}
@@ -1856,7 +1825,7 @@ export default function ConsultarUsuarioDetalle() {
             )}
 
             {/* Registro */}
-            {userData && userData.verificationPDF && (
+            {userData && userData.verification_pdf && (
               <div className="bg-muted/50 rounded-xl p-6">
                 <h4 className="text-sm font-medium text-foreground mb-4 text-blue-600">Registro</h4>
                 
@@ -1867,7 +1836,7 @@ export default function ConsultarUsuarioDetalle() {
                     <p className="text-xs text-muted-foreground mb-3">Usuario: {userData.display_name || 'No disponible'}</p>
                     <div className="flex flex-col gap-2">
                       <button 
-                        onClick={() => window.open(userData.verificationPDF, '_blank')}
+                        onClick={() => window.open(userData.verification_pdf, '_blank')}
                         className="w-full px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-xs font-medium transition-colors"
                       >
                         Descargar registro
@@ -1881,7 +1850,7 @@ export default function ConsultarUsuarioDetalle() {
             {/* Mensaje si no hay documentos */}
             {(!ahorrosData || ahorrosData.filter(ahorro => ahorro.AhorrosDocPdf1).length === 0) &&
              (!cdatsData || cdatsData.filter(cdat => cdat.firma).length === 0) &&
-             (!userData || !userData.verificationPDF) && (
+             (!userData || !userData.verification_pdf) && (
               <div className="text-center py-8">
                 <p className="text-muted-foreground">No hay documentos disponibles para este usuario</p>
               </div>
@@ -1929,21 +1898,20 @@ export default function ConsultarUsuarioDetalle() {
           id: selectedCdatForModal.id,
           nombreusuario: selectedCdatForModal.nombreusuario,
           firmado: selectedCdatForModal.firmado,
-          Inversion: selectedCdatForModal.Inversion,
-          Ganancias: selectedCdatForModal.Ganancias,
-          Rendimiento: selectedCdatForModal.Rendimiento,
-          FechaApertura: selectedCdatForModal.FechaApertura,
-          FechaFinalizacion: selectedCdatForModal.FechaFinalizacion,
-          Tiempo: selectedCdatForModal.Tiempo,
-          RetefuenteMonto: selectedCdatForModal.RetefuenteMonto,
-          // Retefuenteporcentaje: selectedCdatForModal.Retefuenteporcentaje,
-          EA: selectedCdatForModal.EA,
-          Tipooperacion: selectedCdatForModal.Tipooperacion,
+          Inversion: Number(selectedCdatForModal.inversion) || 0,
+          Ganancias: Number(selectedCdatForModal.ganancias) || 0,
+          Rendimiento: Number(selectedCdatForModal.rendimiento) || 0,
+          FechaApertura: selectedCdatForModal.fecha_apertura,
+          FechaFinalizacion: selectedCdatForModal.fecha_finalizacion,
+          Tiempo: Number(selectedCdatForModal.tiempo) || 0,
+          RetefuenteMonto: Number(selectedCdatForModal.retefuente_monto) || 0,
+          EA: Number(selectedCdatForModal.ea) || 0,
+          Tipooperacion: selectedCdatForModal.tipooperacion,
           origenrecursos: selectedCdatForModal.origenrecursos,
-          saldoDisponible: selectedCdatForModal.saldoDisponible,
-          Archivos: selectedCdatForModal.Archivos || [],
+          saldoDisponible: Number(selectedCdatForModal.saldo_disponible) || 0,
+          Archivos: selectedCdatForModal.archivos || [],
           comprobantes: selectedCdatForModal.comprobantes || [],
-          observaciones: selectedCdatForModal.observaciones
+          observaciones: selectedCdatForModal.observaciones || ""
         } : undefined}
       />
 

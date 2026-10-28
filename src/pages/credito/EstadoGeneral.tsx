@@ -8,10 +8,36 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Loader2, Mail, Phone, Building2, IdCard, ChevronDown, ChevronUp, Clock } from "lucide-react";
 import { buscarUsuarioPor, buscarUsuarioPorDocumento, obtenerEmpresaPorRef } from "@/supabase/database";
-import { doc, updateDoc, setDoc, Timestamp, collection, query, where, getDocs, getDoc } from "firebase/firestore";
-import { db } from "@/supabase/config";
+import { supabase } from "@/supabase/config";
 import { cn } from "@/lib/utils";
 import { calcularScoring, type DatosCredito } from "@/utils/scoringCredito";
+
+// Normaliza cualquier fecha (ISO string, Date, Timestamp serializado) a Date
+const parseFechaValue = (value: unknown): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+  if (typeof value === "object" && typeof (value as { toDate?: unknown }).toDate === "function") {
+    try {
+      const fecha = (value as { toDate: () => Date }).toDate();
+      return isNaN(fecha.getTime()) ? null : fecha;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === "object" && typeof (value as { seconds?: number }).seconds === "number") {
+    return new Date((value as { seconds: number }).seconds * 1000);
+  }
+  const fecha = new Date(value as string | number);
+  return isNaN(fecha.getTime()) ? null : fecha;
+};
+
+const numero = (value: unknown): number => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const textoPlano = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value);
 
 interface CreditApplication {
   id: string;
@@ -50,17 +76,16 @@ type CreditStatus =
 interface StatusTab {
   key: CreditStatus;
   label: string;
-  count: number;
   color?: string;
 }
 
 const statusTabs: StatusTab[] = [
-  { key: "inicio-solicitud", label: "Inicio de solicitud", count: 6 },
-  { key: "en-estudio", label: "En estudio", count: 12 },
-  { key: "pre-aprobado", label: "Pre-aprobado", count: 6 },
-  { key: "validacion", label: "Validación", count: 6 },
-  { key: "pendiente-firma", label: "Pendientes de firma", count: 12 },
-  { key: "desembolso", label: "En desembolso", count: 5 },
+  { key: "inicio-solicitud", label: "Inicio de solicitud" },
+  { key: "en-estudio", label: "En estudio" },
+  { key: "pre-aprobado", label: "Pre-aprobado" },
+  { key: "validacion", label: "Validación" },
+  { key: "pendiente-firma", label: "Pendientes de firma" },
+  { key: "desembolso", label: "En desembolso" },
 ];
 
 const getStatusColor = (status: CreditStatus): string => {
@@ -249,6 +274,7 @@ export default function EstadoGeneral() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [tipoCredito, setTipoCredito] = useState<string>("");
   const [solicitudes, setSolicitudes] = useState<HabilitarCreditoRow[]>([]);
+  const [todasSolicitudes, setTodasSolicitudes] = useState<HabilitarCreditoRow[]>([]);
   const [solicitudesLoading, setSolicitudesLoading] = useState(false);
   const [expandedEnEstudio, setExpandedEnEstudio] = useState<string | null>(null);
   const [activeCreditTab, setActiveCreditTab] = useState<string>("Crédito de libranza");
@@ -263,148 +289,185 @@ export default function EstadoGeneral() {
   const [enEstudioLoading, setEnEstudioLoading] = useState(false);
   const [enEstudioSummary, setEnEstudioSummary] = useState<EnEstudioSummary[]>([]);
 
+  // ========== HELPERS DE CARGA ==========
+  const usuariosPorIds = useCallback(async (ids: string[]) => {
+    const mapa = new Map<string, Record<string, unknown>>();
+    const unicos = [...new Set(ids.filter(Boolean))];
+    for (let i = 0; i < unicos.length; i += 100) {
+      const chunk = unicos.slice(i, i + 100);
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("id, uid, nit, nro_documento, display_name, email, phone_number, created_time")
+        .in("id", chunk);
+      if (error) {
+        console.warn("No se pudieron cargar usuarios:", error.message);
+        continue;
+      }
+      (data ?? []).forEach((u) => mapa.set(u.id, u));
+    }
+    return mapa;
+  }, []);
+
+  const normalizarEstado = (estado: unknown) =>
+    textoPlano(estado).trim().toLowerCase();
+
   // ========== FETCH SOLICITUDES INICIO ==========
   const fetchSolicitudes = useCallback(async () => {
     setSolicitudesLoading(true);
     try {
-      const q = query(collection(db, "HabilitarCredito"), where("estado", "==", "inicio de solicitud"));
-      const snap = await getDocs(q);
-      const rows: HabilitarCreditoRow[] = [];
-      for (const docSnap of snap.docs) {
-        const data = docSnap.data();
-        let nombreCompleto = "N/A";
-        let numeroDocumento = "N/A";
-        if (data.nombre) {
-          try {
-            const userSnap = await getDoc(data.nombre);
-            if (userSnap.exists()) {
-              const ud = userSnap.data() as Record<string, unknown>;
-              nombreCompleto = (ud.display_name as string) || "N/A";
-              numeroDocumento = (ud.nit as string) || "N/A";
-            }
-          } catch { /* sin datos */ }
-        }
-        const fecha = data.fechaSolicitud?.toDate?.();
-        const createdTs = data.createdTimeUsuario?.toDate?.();
-        rows.push({
-          uid: docSnap.id,
-          id: data.id || 0,
-          nombreCompleto,
-          numeroDocumento,
+      // Una sola lectura: el estado se agrupa en memoria para las pestañas.
+      const { data, error } = await supabase
+        .from("habilitar_credito")
+        .select("*")
+        .order("fecha_solicitud", { ascending: false });
+
+      if (error) throw error;
+
+      const filas = data ?? [];
+      const usuariosMap = await usuariosPorIds(
+        filas.map((f) => textoPlano(f.user_ref) || textoPlano(f.uid))
+      );
+
+      const rows: HabilitarCreditoRow[] = filas.map((fila) => {
+        const uid = textoPlano(fila.user_ref) || textoPlano(fila.uid);
+        const usuario = usuariosMap.get(uid);
+        const fecha = parseFechaValue(fila.fecha_solicitud);
+        const createdTs =
+          parseFechaValue(fila.fecha_registro_app) ?? parseFechaValue(usuario?.created_time);
+
+        return {
+          uid: fila.id,
+          id: numero(fila.id_field),
+          nombreCompleto:
+            textoPlano(usuario?.display_name) || textoPlano(fila.nombre) || "N/A",
+          numeroDocumento:
+            textoPlano(usuario?.nit) ||
+            textoPlano(usuario?.nro_documento) ||
+            textoPlano(fila.documento) ||
+            "N/A",
           fechaSolicitud: fecha ? fecha.toLocaleDateString("es-CO") : "-",
-          fechaSolicitudRaw: fecha || null,
-          estado: data.estado || "",
-          tipodecredito: data.tipodecredito || "",
-          empresa: (data.empresa as string) || "-",
-          antiguedadEmpresa: (data.antiguedadEmpresa as string) || "-",
+          fechaSolicitudRaw: fecha,
+          estado: textoPlano(fila.estado),
+          tipodecredito: textoPlano(fila.tipodecredito),
+          empresa: textoPlano(fila.empresa) || "-",
+          antiguedadEmpresa: "-",
           antiguedadUsuario: createdTs ? calcularTiempoTranscurrido(createdTs) : "-",
-        });
-      }
-      setSolicitudes(rows);
-    } catch {
-      // error silencioso
+        };
+      });
+
+      setTodasSolicitudes(rows);
+      setSolicitudes(rows.filter((r) => normalizarEstado(r.estado) === "inicio de solicitud"));
+    } catch (error) {
+      console.error("Error cargando solicitudes:", error);
     } finally {
       setSolicitudesLoading(false);
     }
-  }, []);
+  }, [usuariosPorIds]);
 
   // ========== NUEVO: FETCH EN ESTUDIO ==========
   const fetchEnEstudio = useCallback(async () => {
     setEnEstudioLoading(true);
     try {
-      // 1. Obtener documentos de HabilitarCredito con estado "En estudio"
-      const q = query(
-        collection(db, "HabilitarCredito"), 
-        where("estado", "==", "En estudio")
+      // 1. Solicitudes de crédito con estado "En estudio"
+      const [habilitarRes, empresaRes] = await Promise.all([
+        supabase.from("habilitar_credito").select("*").ilike("estado", "en estudio"),
+        supabase.from("credito_solicitado_empresa").select("*"),
+      ]);
+
+      if (habilitarRes.error) throw habilitarRes.error;
+      if (empresaRes.error) throw empresaRes.error;
+
+      const habilitarFilas = habilitarRes.data ?? [];
+
+      // Índice de datos de empresa por usuario (la tabla no tiene FK: se cruza por
+      // user_ref/uid y, como respaldo, por documento).
+      const empresaPorUsuario = new Map<string, Record<string, unknown>>();
+      (empresaRes.data ?? []).forEach((emp) => {
+        [textoPlano(emp.user_ref), textoPlano(emp.uid), textoPlano(emp.documento)]
+          .filter(Boolean)
+          .forEach((clave) => {
+            if (!empresaPorUsuario.has(clave)) empresaPorUsuario.set(clave, emp);
+          });
+      });
+
+      const usuariosMap = await usuariosPorIds(
+        habilitarFilas.map((f) => textoPlano(f.user_ref) || textoPlano(f.uid))
       );
-      const snap = await getDocs(q);
-      
+
       const rows: EnEstudioRow[] = [];
-      
-      for (const docSnap of snap.docs) {
-        const data = docSnap.data();
-        const uid = docSnap.id;
-        
-        // 2. Obtener datos del usuario
-        let nombreUsuario = "N/A";
-        if (data.nombre) {
-          try {
-            const userSnap = await getDoc(data.nombre);
-            if (userSnap.exists()) {
-              const userData = userSnap.data();
-              nombreUsuario = userData.display_name || "N/A";
-            }
-          } catch (e) {
-            console.error("Error obteniendo usuario:", e);
-          }
-        }
-        
-        // 3. Obtener datos de empresa desde creditoSolicitadoEmpresa
-        let datosEmpresa: Record<string, any> = {};
-        try {
-          const empresaDoc = await getDoc(doc(db, "creditoSolicitadoEmpresa", uid));
-          if (empresaDoc.exists()) {
-            datosEmpresa = empresaDoc.data();
-          }
-        } catch (e) {
-          console.error("Error obteniendo datos empresa:", e);
-        }
-        
+
+      for (const data of habilitarFilas) {
+        const uid = textoPlano(data.user_ref) || textoPlano(data.uid);
+        const usuario = usuariosMap.get(uid);
+
+        const nombreUsuario =
+          textoPlano(usuario?.display_name) || textoPlano(data.nombre) || "N/A";
+
+        const datosEmpresa =
+          empresaPorUsuario.get(uid) ||
+          empresaPorUsuario.get(textoPlano(data.documento)) ||
+          {};
+
         // 4. Construir el objeto row
         const row: EnEstudioRow = {
           uid,
           nombre: nombreUsuario,
-          tipoCredito: data.tipodecredito || "",
-          monto: data.montoSolicitud || 0,
+          tipoCredito: textoPlano(data.tipodecredito),
+          monto: numero(data.monto_solicitud),
           libre: 0, // Se calculará después
           total: 0, // Se calculará después
           viabilidad: 0, // Se calculará después
-          fechaSolicitud: data.fechaSolicitud?.toDate?.() || new Date(),
-          
+          fechaSolicitud: parseFechaValue(data.fecha_solicitud) ?? new Date(),
+
           // Datos de HabilitarCredito
-          estadoCivil: data.estadoCivil || "",
-          personasDependientes: data.personasDependientes || "",
-          adultosAcargo: data.adultosAcargo || "",
-          tiempoResidiendo: data.tiempoResidiendo || "",
-          tipoVivienda: data.tipoVivienda || "",
-          residencia: data.residencia || "",
-          tiempoEmpleo: data.tiempoEmpleo || "",
-          tipodeContrato: data.tipodeContrato || "",
-          interrupcionesLab: data.interrupcionesLab || "",
-          fuentesingreso: data.fuentesingreso || "",
-          gastosFijos: data.gastosFijos || 0,
-          promIngresos: data.promIngresos || 0,
-          creditosActivos: data.creditosActivos || "",
-          cuantoscreditos: data.cuantoscreditos || "",
-          retrasoPagos: data.retrasoPagos || "",
-          tarjetasActivas: data.tarjetasActivas || "",
-          creditoGota: data.creditoGota || "",
-          pagoOtrasDeudas: data.pagoOtrasDeudas || 0,
-          centralRiesgo: data.centralRiesgo || "",
-          inversionActiva: data.inversionActiva || "",
-          mesesApagar: data.mesesApagar || 0,
-          
-          // Datos de empresa
-          empresaNombre: datosEmpresa.empresa || data.empresaNombre || "",
-          empresaNit: datosEmpresa.empresaId || data.empresaId || "",
+          estadoCivil: textoPlano(data.estado_civil),
+          personasDependientes: textoPlano(data.personas_dependientes),
+          adultosAcargo: textoPlano(data.adultos_acargo),
+          tiempoResidiendo: textoPlano(data.tiempo_residiendo),
+          tipoVivienda: textoPlano(data.tipo_vivienda),
+          residencia: textoPlano(data.residencia),
+          tiempoEmpleo: textoPlano(data.tiempo_empleo),
+          tipodeContrato: textoPlano(data.tipode_contrato),
+          interrupcionesLab: textoPlano(data.interrupciones_lab),
+          fuentesingreso: textoPlano(data.fuentesingreso),
+          gastosFijos: numero(data.gastos_fijos ?? data.gastos),
+          promIngresos: numero(data.prom_ingresos ?? data.ingreso_promed),
+          creditosActivos: textoPlano(data.creditos_activos),
+          cuantoscreditos: textoPlano(data.cuantoscreditos),
+          retrasoPagos: textoPlano(data.retraso_pagos),
+          tarjetasActivas: textoPlano(data.tarjetas_activas),
+          creditoGota: textoPlano(data.credito_gota),
+          pagoOtrasDeudas: numero(data.pago_otras_deudas),
+          centralRiesgo: textoPlano(data.central_riesgo),
+          inversionActiva: textoPlano(data.inversion_activa),
+          mesesApagar: numero(data.meses_apagar),
+
+          // Datos de empresa (solo columnas existentes en la tabla)
+          empresaNombre:
+            textoPlano(datosEmpresa.empleador_nombre) ||
+            textoPlano(datosEmpresa.empresa) ||
+            textoPlano(data.empresa_nombre) ||
+            textoPlano(data.empresa),
+          empresaNit: "",
           empresaCiudad: "",
-          tipoContrato: datosEmpresa.tipoContrato || "",
-          antiguedadEmpresa: data.antiguedadEmpresa || "",
-          salarioBase: datosEmpresa.salarioBase || 0,
-          totalIngresos: datosEmpresa.totalIngresos || 0,
-          totalDescuentos: datosEmpresa.totalDescuentos || 0,
-          comisionesSalariales: datosEmpresa.comisionesSalariales || 0,
-          bonosNoSalariales: datosEmpresa.bonosNoSalariales || 0,
-          valorAuxilio: datosEmpresa.valorAuxilio || 0,
-          embargos: datosEmpresa.embargos || false,
-          valorEmbargos: datosEmpresa.valorEmbargos || 0,
-          libranzas: datosEmpresa.libranzas || false,
-          valorLibranzas: datosEmpresa.valorLibranzas || 0,
-          cantidadLibranzas: datosEmpresa.cantidadLibranzas || 0,
-          obligacionesInternas: datosEmpresa.obligacionesInternas || false,
-          valorInternos: datosEmpresa.valorInternos || 0,
-          diasVacaciones: datosEmpresa.diasVacaciones || 0,
-          fechaIngreso: datosEmpresa.fechaIngreso || "",
+          tipoContrato:
+            textoPlano(datosEmpresa.tipode_contrato) || textoPlano(data.tipode_contrato),
+          antiguedadEmpresa: textoPlano(data.antiguedad_empresa),
+          salarioBase: numero(datosEmpresa.ingreso_mensual ?? datosEmpresa.promedioingreso),
+          totalIngresos: numero(datosEmpresa.promedioingreso ?? datosEmpresa.ingreso_mensual),
+          totalDescuentos: 0,
+          comisionesSalariales: 0,
+          bonosNoSalariales: 0,
+          valorAuxilio: 0,
+          embargos: false,
+          valorEmbargos: 0,
+          libranzas: false,
+          valorLibranzas: 0,
+          cantidadLibranzas: 0,
+          obligacionesInternas: false,
+          valorInternos: 0,
+          diasVacaciones: 0,
+          fechaIngreso: "",
         };
         
         // 5. CALCULAR SCORING AUTOMÁTICAMENTE
@@ -501,7 +564,7 @@ export default function EstadoGeneral() {
     } finally {
       setEnEstudioLoading(false);
     }
-  }, []);
+  }, [usuariosPorIds]);
 
   useEffect(() => {
     fetchSolicitudes();
@@ -509,6 +572,31 @@ export default function EstadoGeneral() {
   }, [fetchSolicitudes, fetchEnEstudio]);
 
   // ========== HABILITAR SOLICITUD ==========
+  // Upsert manual: la tabla no declara una restricción única por usuario.
+  const guardarHabilitacion = async (
+    tabla: "habilitar_credito" | "credito_solicitado_empresa",
+    uid: string,
+    payload: Record<string, unknown>
+  ) => {
+    const { data: existente, error: errorBusqueda } = await supabase
+      .from(tabla)
+      .select("id")
+      .or(`user_ref.eq.${uid},uid.eq.${uid}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (errorBusqueda) throw errorBusqueda;
+
+    if (existente?.id) {
+      const { error } = await supabase.from(tabla).update(payload).eq("id", existente.id);
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase.from(tabla).insert(payload);
+    if (error) throw error;
+  };
+
   const handleIniciarSolicitud = async () => {
     if (!usuarioEncontrado) return;
     const uid = (usuarioEncontrado.uid || usuarioEncontrado.docId || usuarioEncontrado.id) as string;
@@ -517,54 +605,48 @@ export default function EstadoGeneral() {
     setConfirmOpen(false);
     try {
       const idAleatorio = Math.floor(100000 + Math.random() * 900000);
-      const userRef = doc(db, "user", uid);
       let empresaNomina = "";
-      let antiguedadEmpresa = "";
-      let empresaId = "";
-      let empresaDocId = "";
+
       try {
-        const ahorrosSnap = await getDocs(
-          query(collection(db, "ahorros"), where("UserID", "==", uid), where("SavingsType", "==", "Linea de Ahorro de nómina"))
-        );
-        if (!ahorrosSnap.empty) {
-          const ahorro = ahorrosSnap.docs[0].data() as Record<string, unknown>;
-          empresaNomina = (ahorro.CompayName as string) || "";
-          antiguedadEmpresa = (ahorro.Antiguedad as string) || "";
-          empresaId = (ahorro.CompanyNIT as string) || "";
-          if (ahorro.company && typeof (ahorro.company as { id?: string }).id === "string") {
-            empresaDocId = (ahorro.company as { id: string }).id;
-          }
-        }
+        const { data: ahorro } = await supabase
+          .from("ahorros")
+          .select("compay_name")
+          .eq("user_ref", uid)
+          .eq("savings_type", "Linea de Ahorro de nómina")
+          .limit(1)
+          .maybeSingle();
+
+        empresaNomina = textoPlano(ahorro?.compay_name);
       } catch { /* sin ahorro */ }
-      const docData = {
+
+      const fechaRegistro = parseFechaValue(usuarioEncontrado.created_time);
+
+      const payload = {
         habilitar: true,
-        uid: userRef,
-        id: idAleatorio,
-        nombre: userRef,
+        user_ref: uid,
+        uid,
+        id_field: idAleatorio,
+        nombre: textoPlano(usuarioEncontrado.display_name) || "N/A",
+        documento:
+          textoPlano(usuarioEncontrado.nit) || textoPlano(usuarioEncontrado.nro_documento),
         tipodecredito: tipoCredito,
         estado: "inicio de solicitud",
-        fechaSolicitud: Timestamp.now(),
+        fecha_solicitud: new Date().toISOString(),
+        fecha_registro_app: fechaRegistro ? fechaRegistro.toISOString() : null,
         empresa: empresaNomina,
-        antiguedadEmpresa,
-        empresaId,
-        empresaDocId,
-        createdTimeUsuario: usuarioEncontrado.created_time ?? null,
+        empresa_nombre: empresaNomina,
       };
-      const results = await Promise.allSettled([
-        updateDoc(userRef, { habilitar: true, solicitudCreditoEmpresa: true }),
-        setDoc(doc(db, "HabilitarCredito", uid), docData, { merge: true }),
-        setDoc(doc(db, "creditoSolicitadoEmpresa", uid), docData, { merge: true }),
+
+      await Promise.all([
+        guardarHabilitacion("habilitar_credito", uid, payload),
+        guardarHabilitacion("credito_solicitado_empresa", uid, payload),
       ]);
 
-      const failedWrite = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
-      if (failedWrite) {
-        throw failedWrite.reason;
-      }
       setHabilitadoOk(true);
       fetchSolicitudes();
     } catch (error) {
       const err = error as { code?: string; message?: string };
-      setBusquedaError(`Error al habilitar el crédito (${err.code ?? "sin-codigo"}).`);
+      setBusquedaError(`Error al habilitar el crédito (${err.message ?? "sin detalle"}).`);
       console.error("Error en handleIniciarSolicitud:", err);
     } finally {
       setHabilitandoLoading(false);
@@ -603,13 +685,15 @@ export default function EstadoGeneral() {
 
         if (!empresaNombre && uidBuscar) {
           try {
-            const ahorrosSnap = await getDocs(
-              query(collection(db, "ahorros"), where("UserID", "==", uidBuscar), where("SavingsType", "==", "Linea de Ahorro de nómina"))
-            );
-            if (!ahorrosSnap.empty) {
-              const ahorro = ahorrosSnap.docs[0].data() as Record<string, unknown>;
-              empresaNombre = (ahorro.CompayName as string) || "";
-            }
+            const { data: ahorro } = await supabase
+              .from("ahorros")
+              .select("compay_name")
+              .eq("user_ref", uidBuscar)
+              .eq("savings_type", "Linea de Ahorro de nómina")
+              .limit(1)
+              .maybeSingle();
+
+            empresaNombre = textoPlano(ahorro?.compay_name);
           } catch { /* sin ahorro */ }
         }
 
@@ -635,6 +719,34 @@ export default function EstadoGeneral() {
     row.nombreCompleto.toLowerCase().includes(searchTerm.toLowerCase()) ||
     row.numeroDocumento.includes(searchTerm)
   );
+
+  // Filas de las pestañas que no tienen vista propia (validación, firma, desembolso)
+  const estadoPorTab: Partial<Record<CreditStatus, string>> = {
+    "inicio-solicitud": "inicio de solicitud",
+    validacion: "validación",
+    "pendiente-firma": "pendiente de firma",
+    desembolso: "desembolso",
+  };
+
+  const filteredPorEstado = (tab: CreditStatus) => {
+    const esperado = normalizarEstado(estadoPorTab[tab] ?? tab.replace(/-/g, " "));
+    return todasSolicitudes.filter(
+      (row) =>
+        normalizarEstado(row.estado) === esperado &&
+        (row.nombreCompleto.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          row.numeroDocumento.includes(searchTerm))
+    );
+  };
+
+  const tableRows =
+    activeTab === "inicio-solicitud" ? filteredSolicitudes : filteredPorEstado(activeTab);
+
+  const countByStatus = (tab: CreditStatus) => {
+    if (tab === "en-estudio") return enEstudioData.length;
+    if (tab === "pre-aprobado") return preAprobadoMocked.length;
+    const esperado = normalizarEstado(estadoPorTab[tab] ?? tab.replace(/-/g, " "));
+    return todasSolicitudes.filter((row) => normalizarEstado(row.estado) === esperado).length;
+  };
 
   // Filtrar datos de en estudio por tipo de crédito
   const filteredEnEstudio = enEstudioData.filter(row => row.tipoCredito === activeCreditTab);
@@ -687,11 +799,7 @@ export default function EstadoGeneral() {
                       )}
                     >
                       {tab.label} (
-                        {tab.key === "inicio-solicitud" 
-                          ? solicitudes.length 
-                          : tab.key === "en-estudio"
-                          ? enEstudioData.length
-                          : tab.count}
+                        {countByStatus(tab.key)}
                       )
                     </button>
                   ))}
@@ -1095,16 +1203,12 @@ export default function EstadoGeneral() {
                       )}
                     </div>
                   </div>
-                ) : activeTab !== "inicio-solicitud" ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    No hay datos configurados para esta categoría
-                  </div>
-                ) : filteredSolicitudes.length === 0 ? (
+                ) : tableRows.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground">
                     No se encontraron solicitudes
                   </div>
                 ) : (
-                  filteredSolicitudes.map((row) => (
+                  tableRows.map((row) => (
                     <div
                       key={row.uid}
                       className="grid grid-cols-12 bg-background border-t border-border hover:bg-muted/30 transition-colors"

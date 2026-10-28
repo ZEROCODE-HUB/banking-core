@@ -1,7 +1,7 @@
 import { supabase } from './config';
 
-// Reemplaza src/firebase/storage.js
-// Firebase: ref(storage, `users/${ruta}/uploads/${file}`) -> Supabase Storage buckets
+// Almacenamiento de archivos en Supabase Storage.
+// Ruta: users/{ruta}/uploads/{file} -> buckets 'uploads' y 'archivos'.
 
 const BUCKET_UPLOADS = 'uploads'; // crea bucket 'uploads' en Supabase Storage (privado)
 const BUCKET_ARCHIVOS = 'archivos'; // bucket 'archivos' para PDFs

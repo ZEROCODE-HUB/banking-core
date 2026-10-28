@@ -21,8 +21,7 @@ import {
 import { Mail, CreditCard, Phone, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/supabase/config";
+import { supabase } from "@/supabase/config";
 
 interface StatCardProps {
   value: string;
@@ -96,125 +95,93 @@ export function UserDetailModal({ open, onOpenChange, user }: UserDetailModalPro
     }).format(amount);
   };
 
-  // Cargar movimientos de la colección transactions filtrado por ahorrosId
+  // Cargar movimientos de la tabla transactions filtrado por ahorros_id
   const cargarMovimientos = async () => {
     if (!user?.id) return;
 
     try {
       setCargandoMovimientos(true);
-      console.log('🔄 Cargando movimientos para ahorrosId:', user.id);
+      console.log('🔄 Cargando movimientos para ahorros_id:', user.id);
 
-      // Query a la colección transactions filtrando por ahorrosId
-      const transactionsRef = collection(db, 'transactions');
-      const q = query(transactionsRef, where('ahorrosId', '==', user.id));
-      const querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        const transactions = [];
-        querySnapshot.forEach((doc) => {
-          transactions.push({ id: doc.id, ...doc.data() });
-        });
-        
-        console.log('✅ Transacciones encontradas:', transactions.length);
-        console.log('🔍 Primera transacción:', transactions[0]);
-        
-        // Convertir transactions a formato Movement
-        const movimientos: Movement[] = transactions.map((transaction, index) => {
-          console.log(`🔄 Procesando transacción ${index}:`, transaction);
-          
-          // Convertir Firebase Timestamp a string solo fecha (d/M/y)
-          let dateString = new Date().toLocaleDateString('es-CO');
-          
-          if (transaction.firebaseDate) {
-            try {
-              // Si es un Timestamp de Firebase
-              if (transaction.firebaseDate.seconds) {
-                const date = new Date(transaction.firebaseDate.seconds * 1000);
-                dateString = date.toLocaleDateString('es-CO');
-              }
-              // Si ya es una fecha
-              else if (transaction.firebaseDate instanceof Date) {
-                dateString = transaction.firebaseDate.toLocaleDateString('es-CO');
-              }
-              // Si es un string
-              else if (typeof transaction.firebaseDate === 'string') {
-                dateString = transaction.firebaseDate;
-              }
-            } catch (error) {
-              console.warn('Error procesando firebaseDate:', error);
-              dateString = 'Fecha no disponible';
-            }
-          }
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('ahorros_id', user.id);
 
-          // Determinar tipo basado en transactionType
-          let tipo = 'Fallido'; // Por defecto si no es ninguna
-          
-          console.log('🏷️ transactionType:', transaction.transactionType);
-          console.log('🔄 isNovedadSaldo:', transaction.isNovedadSaldo);
-          console.log('💼 isAhorroCdat:', transaction.isAhorroCdat);
-          
-          if (transaction.transactionType === 'Withdrawal' && transaction.isNovedadSaldo === true) {
-            tipo = 'Debitado';
-          } else if (transaction.isAhorroCdat === true) {
-            tipo = 'Inversión';
-          } else if (transaction.transactionType === 'Withdrawal') {
-            tipo = 'Debitado';
-          } else if (transaction.transactionType === 'Depositado') {
-            tipo = 'Depositado';
-          }
+      if (error) throw error;
 
-          // Determinar estado basado en status
-          let estado = 'Fallido'; // Por defecto
-          if (transaction.status === 'PENDING') {
-            estado = 'Pendiente';
-          } else if (transaction.status === 'APPROVED') {
-            estado = 'Exitoso';
-          }
+      const transactions = data ?? [];
 
-          // Determinar método de pago
-          let metodo = 'N/A';
-          if (transaction.transactionType === 'Depositado' && transaction.isNovedadSaldo !== true) {
-            metodo = 'PSE';
-          } else if (transaction.isNovedadSaldo === true) {
-            metodo = 'Transferencia interna';
-          } else if (transaction.isAhorroCdat === true) {
-            metodo = 'CDAT';
-          } else if (transaction.withdrawalInfo?.bankName) {
-            metodo = transaction.withdrawalInfo.bankName;
-          }
-
-          const movimiento = {
-            date: dateString,
-            amount: transaction.amount || 0,
-            type: tipo,
-            status: estado,
-            metodo: metodo
-          };
-          
-          console.log('💰 Campo amount original:', transaction.amount);
-          console.log('💰 Tipo de amount:', typeof transaction.amount);
-          console.log('💰 Otros campos de monto posibles:');
-          console.log('   - monto:', transaction.monto);
-          console.log('   - value:', transaction.value);
-          console.log('   - total:', transaction.total);
-          console.log('   - quantity:', transaction.quantity);
-          console.log('✅ Movimiento procesado:', movimiento);
-          return movimiento;
-        });
-
-        // Ordenar por fecha descendente (más reciente primero)
-        const movimientosOrdenados = movimientos.sort((a, b) => {
-          const dateA = new Date(a.date.split('/').reverse().join('-')); // Convertir d/M/y a Date
-          const dateB = new Date(b.date.split('/').reverse().join('-')); 
-          return dateB.getTime() - dateA.getTime(); // Descendente
-        });
-
-        setMovimientosReales(movimientosOrdenados);
-        console.log('📊 Movimientos totales procesados:', movimientosOrdenados.length);
-      } else {
-        console.log('⚠️ No hay transacciones para este ahorrosId');
+      if (transactions.length === 0) {
+        console.log('⚠️ No hay transacciones para este ahorros_id');
         setMovimientosReales([]);
+        return;
       }
+
+      console.log('✅ Transacciones encontradas:', transactions.length);
+
+      // Convertir transactions a formato Movement
+      const movimientos: Movement[] = transactions.map((transaction: any) => {
+        let dateString = new Date().toLocaleDateString('es-CO');
+
+        if (transaction.firebase_date) {
+          const date = new Date(transaction.firebase_date);
+          if (!Number.isNaN(date.getTime())) {
+            dateString = date.toLocaleDateString('es-CO');
+          }
+        }
+
+        // Determinar tipo basado en transaction_type
+        let tipo = 'Fallido';
+
+        if (transaction.transaction_type === 'Withdrawal' && transaction.is_novedad_saldo === true) {
+          tipo = 'Debitado';
+        } else if (transaction.is_ahorro_cdat === true) {
+          tipo = 'Inversión';
+        } else if (transaction.transaction_type === 'Withdrawal') {
+          tipo = 'Debitado';
+        } else if (transaction.transaction_type === 'Depositado') {
+          tipo = 'Depositado';
+        }
+
+        // Determinar estado basado en status
+        let estado = 'Fallido';
+        if (transaction.status === 'PENDING') {
+          estado = 'Pendiente';
+        } else if (transaction.status === 'APPROVED') {
+          estado = 'Exitoso';
+        }
+
+        // Determinar método de pago
+        let metodo = 'N/A';
+        if (transaction.transaction_type === 'Depositado' && transaction.is_novedad_saldo !== true) {
+          metodo = 'PSE';
+        } else if (transaction.is_novedad_saldo === true) {
+          metodo = 'Transferencia interna';
+        } else if (transaction.is_ahorro_cdat === true) {
+          metodo = 'CDAT';
+        } else if (transaction.withdrawal_info?.bankName) {
+          metodo = transaction.withdrawal_info.bankName;
+        }
+
+        return {
+          date: dateString,
+          amount: transaction.amount || 0,
+          type: tipo,
+          status: estado,
+          metodo: metodo
+        };
+      });
+
+      // Ordenar por fecha descendente (más reciente primero)
+      const movimientosOrdenados = movimientos.sort((a, b) => {
+        const dateA = new Date(a.date.split('/').reverse().join('-'));
+        const dateB = new Date(b.date.split('/').reverse().join('-'));
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      setMovimientosReales(movimientosOrdenados);
+      console.log('📊 Movimientos totales procesados:', movimientosOrdenados.length);
     } catch (error) {
       console.error('❌ Error cargando movimientos:', error);
       setMovimientosReales([]);

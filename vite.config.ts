@@ -13,10 +13,6 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "firebase/firestore": path.resolve(__dirname, "./src/supabase/firestore-shim.ts"),
-      "firebase/auth": path.resolve(__dirname, "./src/supabase/auth.ts"),
-      "firebase/storage": path.resolve(__dirname, "./src/supabase/storage.ts"),
-      "firebase/app": path.resolve(__dirname, "./src/supabase/config.ts"),
     },
   },
 }));

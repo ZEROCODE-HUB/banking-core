@@ -1,9 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Eye, Trash2, X, AlertTriangle, Calendar, Clock, DollarSign, FileText, Loader2 } from "lucide-react";
-import { obtenerColeccion, obtenerSubcoleccion, actualizarDocumento } from "@/supabase/database";
-import { auth } from "@/supabase/config";
-import { Timestamp } from "firebase/firestore";
+import { obtenerColeccion, actualizarDocumento } from "@/supabase/database";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -33,113 +31,100 @@ import {
 
 // Función para formatear moneda colombiana
 const formatCurrency = (amount: number) => {
+  const valor = Number(amount);
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
-  }).format(amount).replace('COP', '$');
+  }).format(Number.isFinite(valor) ? valor : 0).replace('COP', '$');
+};
+
+// Convierte cualquier fecha (ISO string, Date, Timestamp serializado) en Date
+const parseFecha = (value: any): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+  if (typeof value?.toDate === 'function') {
+    try {
+      const fecha = value.toDate();
+      return isNaN(fecha.getTime()) ? null : fecha;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value?.seconds === 'number') {
+    const fecha = new Date(value.seconds * 1000);
+    return isNaN(fecha.getTime()) ? null : fecha;
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const fecha = new Date(value);
+    return isNaN(fecha.getTime()) ? null : fecha;
+  }
+  return null;
 };
 
 // Función para formatear fecha
-const formatDate = (timestamp: any) => {
-  try {
-    let fecha;
-    
-    // Si es un Timestamp de Firebase
-    if (timestamp && typeof timestamp.toDate === 'function') {
-      fecha = timestamp.toDate();
-    }
-    // Si es un objeto con seconds (Timestamp serializado)
-    else if (timestamp && timestamp.seconds) {
-      fecha = new Date(timestamp.seconds * 1000);
-    }
-    // Si es un Date object
-    else if (timestamp instanceof Date) {
-      fecha = timestamp;
-    }
-    // Si es un string o number
-    else if (typeof timestamp === 'string' || typeof timestamp === 'number') {
-      fecha = new Date(timestamp);
-    }
-    // Si es null o undefined
-    else {
-      return 'Sin fecha';
-    }
-    
-    // Verificar que la fecha sea válida
-    if (!isNaN(fecha.getTime())) {
-      return fecha.toLocaleDateString('es-CO', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-    }
-    return 'Fecha inválida';
-  } catch (error) {
-    console.error('Error formateando fecha:', error);
-    return 'Error fecha';
-  }
+const formatDate = (value: any) => {
+  const fecha = parseFecha(value);
+  if (!fecha) return 'Sin fecha';
+  return fecha.toLocaleDateString('es-CO', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
 };
 
 // Función para calcular tiempo transcurrido
-const calculateTimeElapsed = (createdDate: any) => {
-  try {
-    let fecha;
-    
-    // Si es un Timestamp de Firebase
-    if (createdDate && typeof createdDate.toDate === 'function') {
-      fecha = createdDate.toDate();
-    }
-    // Si es un objeto con seconds (Timestamp serializado)
-    else if (createdDate && createdDate.seconds) {
-      fecha = new Date(createdDate.seconds * 1000);
-    }
-    // Si es un Date object
-    else if (createdDate instanceof Date) {
-      fecha = createdDate;
-    }
-    // Si es un string o number
-    else if (typeof createdDate === 'string' || typeof createdDate === 'number') {
-      fecha = new Date(createdDate);
-    }
-    // Si no hay fecha
-    else {
-      return '-';
-    }
-    
-    // Verificar que la fecha sea válida
-    if (isNaN(fecha.getTime())) {
-      return '-';
-    }
-    
-    const now = new Date();
-    const diffMs = now.getTime() - fecha.getTime();
-    
-    // Si la diferencia es negativa, la fecha es futura
-    if (diffMs < 0) {
-      return 'Fecha futura';
-    }
-    
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    const diffSeconds = Math.floor((diffMs % (1000 * 60)) / 1000);
-    
-    // Formato HH:MM:SS como en solicitudes
-    if (diffDays > 0) {
-      // Si hay días, mostrar días + horas:minutos
-      const totalHours = diffDays * 24 + diffHours;
-      return `${totalHours.toString().padStart(2, '0')}:${diffMinutes.toString().padStart(2, '0')}:${diffSeconds.toString().padStart(2, '0')}`;
-    } else {
-      // Solo horas:minutos:segundos
-      return `${diffHours.toString().padStart(2, '0')}:${diffMinutes.toString().padStart(2, '0')}:${diffSeconds.toString().padStart(2, '0')}`;
-    }
-  } catch (error) {
-    console.error('Error calculando tiempo:', error);
-    return '-';
+const calculateTimeElapsed = (value: any) => {
+  const fecha = parseFecha(value);
+  if (!fecha) return '-';
+
+  const diffMs = Date.now() - fecha.getTime();
+
+  // Si la diferencia es negativa, la fecha es futura
+  if (diffMs < 0) {
+    return 'Fecha futura';
   }
+
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  const diffSeconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+
+  // Formato HH:MM:SS como en solicitudes
+  if (diffDays > 0) {
+    const totalHours = diffDays * 24 + diffHours;
+    return `${totalHours.toString().padStart(2, '0')}:${diffMinutes.toString().padStart(2, '0')}:${diffSeconds.toString().padStart(2, '0')}`;
+  }
+  return `${diffHours.toString().padStart(2, '0')}:${diffMinutes.toString().padStart(2, '0')}:${diffSeconds.toString().padStart(2, '0')}`;
 };
+
+// Retiros anticipados programados a partir del plazo del CDAT (cada 3 meses)
+const calcularRetirosProgramados = (cdat: any) => {
+  const plazoMeses = Number(cdat?.tiempo) || 0;
+  const cantidadRetiros = Math.floor(plazoMeses / 3);
+  const fechaApertura = parseFecha(cdat?.fecha_apertura);
+  if (cantidadRetiros < 1 || !fechaApertura) return [];
+
+  const gananciasTotal = Number(cdat?.ganancias) || 0;
+  const inversion = Number(cdat?.inversion) || 0;
+  const gananciaPorRetiro = Math.floor(gananciasTotal / cantidadRetiros);
+
+  return Array.from({ length: cantidadRetiros }, (_, i) => {
+    const numero = i + 1;
+    const fecha = new Date(fechaApertura);
+    fecha.setMonth(fechaApertura.getMonth() + numero * 3);
+    const esUltimo = numero === cantidadRetiros;
+    return {
+      numero,
+      fecha,
+      monto: esUltimo ? gananciaPorRetiro + inversion : gananciaPorRetiro,
+      esUltimo,
+    };
+  });
+};
+
+const esUrl = (archivo: string) => /^https?:\/\//i.test(archivo || '');
 
 export function LegalizacionSection() {
   const { toast } = useToast();
@@ -150,22 +135,21 @@ export function LegalizacionSection() {
   const [deleteReason, setDeleteReason] = useState("");
   const [cdatData, setCdatData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [documentoFilter, setDocumentoFilter] = useState("");
-  const [tipoDocumento, setTipoDocumento] = useState("identificacion");
-  const [retirosSelectedItem, setRetirosSelectedItem] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchType, setSearchType] = useState<"todos" | "nombre" | "documento">("todos");
+  const itemsPerPage = 10;
 
   // Cargar datos de CDATs pendientes de firma
   const cargarCDATs = async () => {
     try {
       setIsLoading(true);
       const cdats = await obtenerColeccion('Cdats');
-      
+
       // Filtrar solo los CDATs pendientes de firma
-      const cdatsPendientesFirma = cdats.filter(cdat => 
-        cdat.Estado === "Pendiente de firma"
+      const cdatsPendientesFirma = (cdats as any[]).filter(cdat =>
+        String(cdat.estado || '').toLowerCase() === 'pendiente de firma'
       );
-      
-      console.log('CDATs pendientes de firma:', cdatsPendientesFirma);
+
       setCdatData(cdatsPendientesFirma);
     } catch (error) {
       console.error('Error al cargar CDATs:', error);
@@ -179,63 +163,54 @@ export function LegalizacionSection() {
     }
   };
 
-  // Buscar CDATs por documento
-  const buscarCDATs = async () => {
-    if (!documentoFilter.trim()) {
-      // Si no hay filtro, cargar todos los pendientes de firma
-      await cargarCDATs();
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const cdats = await obtenerColeccion('Cdats');
-      
-      // Filtrar por documento y estado
-      const cdatsFiltrados = cdats.filter(cdat => 
-        cdat.Estado === "Pendiente de firma" &&
-        (cdat.documentousuario?.toString().includes(documentoFilter) ||
-         cdat.nombreusuario?.toLowerCase().includes(documentoFilter.toLowerCase()))
-      );
-      
-      setCdatData(cdatsFiltrados);
-      
-      if (cdatsFiltrados.length === 0) {
-        toast({
-          title: "Sin resultados",
-          description: "No se encontraron CDATs pendientes de firma con ese criterio",
-          variant: "default",
-        });
-      }
-    } catch (error) {
-      console.error('Error en búsqueda:', error);
-      toast({
-        title: "Error en búsqueda",
-        description: "Hubo un problema buscando los CDATs",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Cargar datos al montar el componente
   useEffect(() => {
     cargarCDATs();
   }, []);
 
-  // Filter data - ahora solo filtramos localmente los datos ya cargados
-  const filteredData = documentoFilter 
-    ? cdatData.filter(cdat => 
-        cdat.documentousuario?.toString().includes(documentoFilter) ||
-        cdat.nombreusuario?.toLowerCase().includes(documentoFilter.toLowerCase())
-      )
-    : cdatData;
+  // Filtrar localmente por nombre o documento
+  const filteredData = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return cdatData;
+    return cdatData.filter(cdat => {
+      const nombre = String(cdat.nombreusuario || '').toLowerCase();
+      const documento = String(cdat.documentousuario || '');
+      if (searchType === 'nombre') return nombre.includes(term);
+      if (searchType === 'documento') return documento.includes(term);
+      return nombre.includes(term) || documento.includes(term);
+    });
+  }, [cdatData, searchTerm, searchType]);
+
+  // Paginación
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedData = filteredData.slice(startIndex, startIndex + itemsPerPage);
+
+  const visiblePages = useMemo(() => {
+    const maxVisible = 5;
+    if (totalPages <= maxVisible) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    const end = Math.min(totalPages, start + maxVisible - 1);
+    start = Math.max(1, end - maxVisible + 1);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  }, [currentPage, totalPages]);
+
+  // Resetear página al cambiar los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, searchType]);
+
+  // Evitar quedar en una página que ya no existe
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   // Count by status - solo contamos pendientes de firma
   const pendienteFirmaCount = filteredData.length;
 
-  const getStatusColor = (estado: string) => {
+  const getStatusColor = (estado?: string) => {
     switch (estado) {
       case "Pendiente de firma":
         return "bg-orange-100 text-orange-600";
@@ -248,34 +223,16 @@ export function LegalizacionSection() {
     }
   };
 
-  // Cargar retiros de un CDAT específico
-  const cargarRetirosCDAT = async (cdatId: string) => {
-    try {
-      console.log('🔄 Cargando retiros para CDAT:', cdatId);
-      const retiros = await obtenerSubcoleccion(`Cdats/${cdatId}`, 'RetirosCdat');
-      console.log('✅ Retiros cargados:', retiros);
-      
-      // Ordenar por fecha de retiro
-      return retiros.sort((a, b) => {
-        const fechaA = a.Fecharetiro?.toDate ? a.Fecharetiro.toDate() : new Date(a.Fecharetiro);
-        const fechaB = b.Fecharetiro?.toDate ? b.Fecharetiro.toDate() : new Date(b.Fecharetiro);
-        return fechaA.getTime() - fechaB.getTime();
-      });
-    } catch (error) {
-      console.error('❌ Error cargando retiros para CDAT', cdatId, ':', error);
-      return [];
-    }
-  };
+  // Retiros anticipados: `retiros_cdat` no tiene FK al CDAT, así que se
+  // calculan desde el plazo del contrato (misma lógica que CDATDetailModal).
+  const retirosProgramados = useMemo(
+    () => (selectedItem ? calcularRetirosProgramados(selectedItem) : []),
+    [selectedItem],
+  );
 
-  const handleView = async (row: any) => {
+  const handleView = (row: any) => {
     setSelectedItem(row);
     setShowViewModal(true);
-    
-    // Cargar retiros del CDAT
-    if (row.id) {
-      const retiros = await cargarRetirosCDAT(row.id);
-      setRetirosSelectedItem(retiros);
-    }
   };
 
   const handleDeleteClick = (row: any) => {
@@ -295,13 +252,10 @@ export function LegalizacionSection() {
         return;
       }
 
-      console.log("� Cambiando estado del CDAT:", selectedItem.id, "Motivo:", deleteReason);
-      
       // Actualizar el documento cambiando el estado a "Eliminado" y agregando el motivo
       await actualizarDocumento('Cdats', selectedItem.id, {
-        Estado: "Eliminado",
-        motivoEliminado: deleteReason.trim(),
-        fechaEliminacion: new Date()
+        estado: "Eliminado",
+        motivo_eliminado: deleteReason.trim()
       });
       
       // Actualizar la lista local removiendo el item (ya que solo mostramos "Pendiente de firma")
@@ -310,7 +264,7 @@ export function LegalizacionSection() {
       // Mostrar mensaje de éxito
       toast({
         title: "CDAT Marcado como Eliminado",
-        description: `El CDAT #${selectedItem.idCdat} ha sido marcado como eliminado`,
+        description: `El CDAT #${selectedItem.id_cdat} ha sido marcado como eliminado`,
         variant: "default",
       });
       
@@ -334,43 +288,51 @@ export function LegalizacionSection() {
       {/* Filters */}
       <div className="flex items-end gap-4 mb-6">
         <div className="flex-1 max-w-[280px] space-y-2">
-          <Label className="text-sm text-foreground font-normal">Tipo de documento</Label>
-          <Select value={tipoDocumento} onValueChange={setTipoDocumento}>
+          <Label className="text-sm text-foreground font-normal">Buscar por</Label>
+          <Select value={searchType} onValueChange={(value) => setSearchType(value as "todos" | "nombre" | "documento")}>
             <SelectTrigger className="bg-card border-border">
               <SelectValue placeholder="Seleccionar" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="identificacion">Identificación</SelectItem>
-              <SelectItem value="cedula">Cédula de ciudadanía</SelectItem>
-              <SelectItem value="pasaporte">Pasaporte</SelectItem>
-              <SelectItem value="permanencia">Permiso de permanencia</SelectItem>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="nombre">Nombre</SelectItem>
+              <SelectItem value="documento">Documento</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="flex-1 max-w-[320px] space-y-2">
-          <Label className="text-sm text-foreground font-normal">Número de cédula</Label>
+          <Label className="text-sm text-foreground font-normal">Buscar CDATs</Label>
           <Input 
             placeholder="Escribe el número de cédula o nombre" 
-            value={documentoFilter}
-            onChange={(e) => setDocumentoFilter(e.target.value)}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="bg-card border-border"
-            onKeyPress={(e) => e.key === 'Enter' && buscarCDATs()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                cargarCDATs();
+              }
+            }}
           />
         </div>
 
         <Button 
-          onClick={buscarCDATs}
+          onClick={() => {
+            setSearchTerm('');
+            setSearchType('todos');
+            cargarCDATs();
+          }}
           disabled={isLoading}
           className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-12"
         >
           {isLoading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Buscando...
+              Cargando...
             </>
           ) : (
-            'Buscar'
+            'Limpiar'
           )}
         </Button>
       </div>
@@ -418,29 +380,29 @@ export function LegalizacionSection() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.map((cdat, index) => (
+            {paginatedData.map((cdat, index) => (
               <TableRow key={cdat.id || index} className="border-b border-border">
                 <TableCell className="text-foreground font-medium">
-                  {cdat.idCdat
-                    ? `#${cdat.idCdat} ${cdat.isAhorroCdat ? 'AP' : 'CB'}`
+                  {cdat.id_cdat
+                    ? `#${cdat.id_cdat} ${cdat.is_ahorro_cdat ? 'AP' : 'CB'}`
                     : 'N/A'}
                 </TableCell>
                 <TableCell className="text-foreground">{cdat.nombreusuario || 'N/A'}</TableCell>
                 <TableCell className="text-foreground">{cdat.documentousuario || 'N/A'}</TableCell>
-                <TableCell className="text-foreground">{formatCurrency(cdat.Inversion || 0)}</TableCell>
-                <TableCell className="text-foreground">{formatDate(cdat.FechaApertura || cdat.fechaCreacion)}</TableCell>
+                <TableCell className="text-foreground">{formatCurrency(cdat.inversion || 0)}</TableCell>
+                <TableCell className="text-foreground">{formatDate(cdat.fecha_apertura || cdat.fechacreacion)}</TableCell>
                 <TableCell>
                   <span className={cn(
                     "px-3 py-1 rounded-full text-xs font-medium",
-                    getStatusColor(cdat.Estado || 'Desconocido')
+                    getStatusColor(cdat.estado || 'Desconocido')
                   )}>
-                    {cdat.Estado || 'Desconocido'}
+                    {cdat.estado || 'Desconocido'}
                   </span>
                 </TableCell>
                 <TableCell className="text-foreground">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                    {calculateTimeElapsed(cdat.fechaCreacion)}
+                    {calculateTimeElapsed(cdat.fechacreacion || cdat.created_at)}
                   </div>
                 </TableCell>
                 <TableCell>
@@ -468,7 +430,11 @@ export function LegalizacionSection() {
         )}
 
         {/* Pagination */}
-        <div className="flex items-center justify-center mt-4 pt-4 border-t border-border">
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+          <span className="text-sm text-muted-foreground">
+            Página {currentPage} de {totalPages} ({filteredData.length} CDATs)
+          </span>
+
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -478,7 +444,7 @@ export function LegalizacionSection() {
               <span className="text-sm">&lt;</span>
             </button>
             
-            {[1, 2, 3].map(page => (
+            {visiblePages.map(page => (
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
@@ -493,18 +459,9 @@ export function LegalizacionSection() {
               </button>
             ))}
             
-            <span className="text-muted-foreground">...</span>
-            
-            <button
-              onClick={() => setCurrentPage(16)}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-medium border border-border hover:bg-muted"
-            >
-              16
-            </button>
-            
             <button 
-              onClick={() => setCurrentPage(p => Math.min(16, p + 1))}
-              disabled={currentPage === 16}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
               className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span className="text-sm">&gt;</span>
@@ -514,12 +471,7 @@ export function LegalizacionSection() {
       </div>
 
       {/* View Details Modal */}
-      <Dialog open={showViewModal} onOpenChange={(open) => {
-        setShowViewModal(open);
-        if (!open) {
-          setRetirosSelectedItem([]);
-        }
-      }}>
+      <Dialog open={showViewModal} onOpenChange={setShowViewModal}>
         <DialogContent className="max-w-4xl p-0 bg-card overflow-hidden max-h-[90vh] overflow-y-auto">
           <DialogTitle className="sr-only">
             Detalles del CDAT - {selectedItem?.nombreusuario || 'Usuario'}
@@ -536,7 +488,7 @@ export function LegalizacionSection() {
                     {selectedItem.nombreusuario || 'Usuario desconocido'}
                   </h2>
                   <span className="px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-600">
-                    {selectedItem.Estado || 'Estado desconocido'}
+                    {selectedItem.estado || 'Estado desconocido'}
                   </span>
                 </div>
                 <button 
@@ -556,7 +508,7 @@ export function LegalizacionSection() {
                 {/* Total to receive */}
                 <div className="bg-sidebar rounded-xl py-3 px-6 mb-3">
                   <p className="text-2xl font-bold text-sidebar-foreground text-center">
-                    {formatCurrency((selectedItem.Inversion || 0) + (selectedItem.Ganancias || 0))}
+                    {formatCurrency((Number(selectedItem.inversion) || 0) + (Number(selectedItem.ganancias) || 0))}
                   </p>
                   <p className="text-sm text-sidebar-foreground/80 text-center">Total a recibir</p>
                 </div>
@@ -565,7 +517,7 @@ export function LegalizacionSection() {
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex-1 bg-card rounded-xl py-2 px-4 text-center">
                     <p className="text-lg font-bold text-primary">
-                      {formatCurrency(selectedItem.Inversion || 0)}
+                      {formatCurrency(selectedItem.inversion || 0)}
                     </p>
                     <p className="text-xs text-muted-foreground">Inversión</p>
                   </div>
@@ -574,7 +526,7 @@ export function LegalizacionSection() {
                   </div>
                   <div className="flex-1 bg-card rounded-xl py-2 px-4 text-center">
                     <p className="text-lg font-bold text-primary">
-                      {formatCurrency(selectedItem.Ganancias || 0)}
+                      {formatCurrency(selectedItem.ganancias || 0)}
                     </p>
                     <p className="text-xs text-muted-foreground">Ganancias</p>
                   </div>
@@ -588,7 +540,7 @@ export function LegalizacionSection() {
                         <Calendar size={12} className="text-muted-foreground" />
                       </div>
                       <p className="text-xs font-medium text-foreground">
-                        {formatDate(selectedItem.FechaApertura)}
+                        {formatDate(selectedItem.fecha_apertura)}
                       </p>
                     </div>
                     <p className="text-[10px] text-muted-foreground">Fecha de apertura</p>
@@ -599,7 +551,7 @@ export function LegalizacionSection() {
                         <Clock size={12} className="text-muted-foreground" />
                       </div>
                       <p className="text-xs font-medium text-foreground">
-                        {selectedItem.Tiempo || 0} meses
+                        {selectedItem.tiempo || 0} meses
                       </p>
                     </div>
                     <p className="text-[10px] text-muted-foreground">Tiempo</p>
@@ -610,7 +562,7 @@ export function LegalizacionSection() {
                         <Calendar size={12} className="text-muted-foreground" />
                       </div>
                       <p className="text-xs font-medium text-foreground">
-                        {formatDate(selectedItem.FechaFinalizacion)}
+                        {formatDate(selectedItem.fecha_finalizacion)}
                       </p>
                     </div>
                     <p className="text-[10px] text-muted-foreground">Fecha de finalización</p>
@@ -621,11 +573,11 @@ export function LegalizacionSection() {
                         <DollarSign size={12} className="text-primary" />
                       </div>
                       <p className="text-xs font-medium text-foreground">
-                        -{formatCurrency(selectedItem.RetefuenteMonto || 0)}
+                        -{formatCurrency(selectedItem.retefuente_monto || 0)}
                       </p>
                     </div>
                     <p className="text-[10px] text-muted-foreground">
-                      Retefuente {Math.round((selectedItem.Retefuenteporcentaje || 0.04) * 100)}%
+                      Retefuente {Math.round((selectedItem.retefuenteporcentaje || 0.04) * 100)}%
                     </p>
                   </div>
                   <div className="flex flex-col items-start gap-1">
@@ -634,7 +586,7 @@ export function LegalizacionSection() {
                         <DollarSign size={12} className="text-primary" />
                       </div>
                       <p className="text-xs font-medium text-foreground">
-                        {selectedItem.EA || 0}% E.A
+                        {selectedItem.ea || 0}% E.A
                       </p>
                     </div>
                     <p className="text-[10px] text-muted-foreground">Efectiva Anual</p>
@@ -645,7 +597,7 @@ export function LegalizacionSection() {
                         <DollarSign size={12} className="text-primary" />
                       </div>
                       <p className="text-xs font-medium text-foreground">
-                        {formatCurrency(selectedItem.Rendimiento || 0)}
+                        {formatCurrency(selectedItem.rendimiento || 0)}
                       </p>
                     </div>
                     <p className="text-[10px] text-muted-foreground">Rendimientos</p>
@@ -656,30 +608,23 @@ export function LegalizacionSection() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-sm font-medium text-foreground">Disponibilidad de retiros anticipados</h4>
-                    <span className="text-sm font-bold text-primary">{formatCurrency(selectedItem.Ganancias || 0)}</span>
+                    <span className="text-sm font-bold text-primary">{formatCurrency(selectedItem.ganancias || 0)}</span>
                   </div>
                   <div className="space-y-1">
-                    {retirosSelectedItem.length > 0 ? (
-                      retirosSelectedItem.map((retiro, index) => {
-                        const fechaRetiro = retiro.Fecharetiro?.toDate ? 
-                          retiro.Fecharetiro.toDate() : 
-                          new Date(retiro.Fecharetiro);
-                        const esUltimoRetiro = index === retirosSelectedItem.length - 1;
-                        
-                        return (
-                          <div key={index} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-b-0">
-                            <div>
-                              <p className="text-sm text-foreground">{formatDate(retiro.Fecharetiro)}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {esUltimoRetiro ? `Anticipo ${index + 1} + capital inicial` : `Anticipo ${index + 1}`}
-                              </p>
-                            </div>
-                            <p className="text-sm font-medium text-foreground">
-                              {formatCurrency(retiro.Monto || 0)}
+                    {retirosProgramados.length > 0 ? (
+                      retirosProgramados.map((retiro) => (
+                        <div key={retiro.numero} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-b-0">
+                          <div>
+                            <p className="text-sm text-foreground">{formatDate(retiro.fecha)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {retiro.esUltimo ? `Anticipo ${retiro.numero} + capital inicial` : `Anticipo ${retiro.numero}`}
                             </p>
                           </div>
-                        );
-                      })
+                          <p className="text-sm font-medium text-foreground">
+                            {formatCurrency(retiro.monto)}
+                          </p>
+                        </div>
+                      ))
                     ) : (
                       <div className="text-sm text-muted-foreground">
                         No hay retiros programados para este CDAT
@@ -696,14 +641,14 @@ export function LegalizacionSection() {
               <div className="space-y-1 mb-3">
                 <Label className="text-sm text-muted-foreground font-normal">Tipo de operación</Label>
                 <div className="bg-card rounded-lg p-2.5">
-                  <p className="text-sm text-foreground">{selectedItem.Tipooperacion || 'N/A'}</p>
+                  <p className="text-sm text-foreground">{selectedItem.tipooperacion || 'N/A'}</p>
                 </div>
               </div>
               
               <div className="space-y-1 mb-3">
                 <Label className="text-sm text-muted-foreground font-normal">Valor de la operación</Label>
                 <div className="bg-card rounded-lg p-2.5">
-                  <p className="text-sm text-foreground">{formatCurrency(selectedItem.Inversion || 0)}</p>
+                  <p className="text-sm text-foreground">{formatCurrency(selectedItem.inversion || 0)}</p>
                 </div>
               </div>
               
@@ -729,9 +674,9 @@ export function LegalizacionSection() {
                       <div key={index} className="flex items-center gap-2 bg-card rounded-lg px-3 py-1.5">
                         <FileText size={14} className="text-muted-foreground" />
                         <span className="text-sm text-foreground">
-                          {archivo.includes('firebasestorage') ? `Archivo ${index + 1}` : archivo}
+                          {esUrl(archivo) ? `Archivo ${index + 1}` : archivo}
                         </span>
-                        {archivo.includes('firebasestorage') && (
+                        {esUrl(archivo) && (
                           <a 
                             href={archivo} 
                             target="_blank" 
@@ -752,14 +697,14 @@ export function LegalizacionSection() {
               <div className="space-y-1 mt-4">
                 <Label className="text-sm text-muted-foreground font-normal">Archivos del CDAT</Label>
                 <div className="flex flex-wrap gap-2">
-                  {selectedItem.Archivos && selectedItem.Archivos.length > 0 ? (
-                    selectedItem.Archivos.map((archivo: string, index: number) => (
+                  {selectedItem.archivos && selectedItem.archivos.length > 0 ? (
+                    selectedItem.archivos.map((archivo: string, index: number) => (
                       <div key={index} className="flex items-center gap-2 bg-card rounded-lg px-3 py-1.5">
                         <FileText size={14} className="text-muted-foreground" />
                         <span className="text-sm text-foreground">
-                          {archivo.includes('firebasestorage') ? `Documento PDF ${index + 1}` : archivo}
+                          {esUrl(archivo) ? `Documento PDF ${index + 1}` : archivo}
                         </span>
-                        {archivo.includes('firebasestorage') && (
+                        {esUrl(archivo) && (
                           <a 
                             href={archivo} 
                             target="_blank" 

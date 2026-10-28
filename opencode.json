@@ -1,0 +1,19 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "model": "deepseek/deepseek-v4.1-flash-free",
+    "providers": {
+      "google": {
+        "settings": {
+          "apiKey": "{env:DEEPSEEK_API_KEY}"
+        }
+      }
+    },
+    "permission": {
+      "skill":{
+        "*": "allow",
+        "pr-review":"allow",
+      },
+      "write": "ask",
+      "bash": "ask"
+    }
+  }

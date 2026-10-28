@@ -1,7 +1,6 @@
 import { supabase } from './config';
 
-// Reemplaza src/firebase/auth.js
-// Firebase: signInWithEmailAndPassword(auth,email,pass) -> Supabase: signInWithPassword
+// Autenticación con Supabase Auth.
 
 export const login = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -24,7 +23,7 @@ export const observarAuth = (callback: (user: any) => void) => {
   const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
     callback(session?.user ?? null);
   });
-  // compat: firebase devuelve unsubscribe function
+  // devuelve la función para cancelar la suscripción
   return () => subscription.unsubscribe();
 };
 

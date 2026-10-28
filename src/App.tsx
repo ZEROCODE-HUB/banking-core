@@ -17,7 +17,6 @@ import ContabilidadAhorro from "./pages/contabilidad/ContabilidadAhorro";
 import ProductosPortafolio from "./pages/productos/PortafolioServicios";
 import EstadoGeneral from "./pages/credito/EstadoGeneral";
 import Cartera from "./pages/credito/Cartera";
-import TestFirebase from './TestFirebase';
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -128,12 +127,6 @@ const App = () => (
             <Route path="/credito/cartera" element={
               <ProtectedRoute>
                 <Cartera />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/test-firebase" element={
-              <ProtectedRoute>
-                <TestFirebase />
               </ProtectedRoute>
             } />
             

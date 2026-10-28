@@ -31,12 +31,13 @@ export function CDATDetailModal({ open, onOpenChange, cdat }: CDATDetailModalPro
 
   // Función para formatear montos
   const formatAmount = (amount: number) => {
+    const value = Number(amount);
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(amount);
+    }).format(Number.isFinite(value) ? value : 0);
   };
 
   // Función para formatear fechas
@@ -47,7 +48,7 @@ export function CDATDetailModal({ open, onOpenChange, cdat }: CDATDetailModalPro
   };
 
   // Calcular total a recibir
-  const totalARecibir = cdat.Inversion + cdat.Ganancias;
+  const totalARecibir = (Number(cdat.Inversion) || 0) + (Number(cdat.Ganancias) || 0);
 
   // Estado de firma
   const estadoFirma = cdat.firmado ? 'Firmado' : 'Pendiente de firma';
@@ -55,12 +56,16 @@ export function CDATDetailModal({ open, onOpenChange, cdat }: CDATDetailModalPro
 
   // Calcular retiros anticipados basado en el plazo
   const calcularRetirosAnticipados = () => {
-    const plazoMeses = cdat.Tiempo;
+    const plazoMeses = Number(cdat.Tiempo) || 0;
     const cantidadRetiros = Math.floor(plazoMeses / 3); // Cada 3 meses un retiro
+    if (cantidadRetiros < 1 || !cdat.FechaApertura) return [];
+
     const retiros = [];
     
-    const fechaApertura = cdat.FechaApertura.toDate();
-    const gananciasTotal = cdat.Ganancias;
+    const fechaApertura = cdat.FechaApertura.toDate ? cdat.FechaApertura.toDate() : new Date(cdat.FechaApertura);
+    if (isNaN(fechaApertura.getTime())) return [];
+
+    const gananciasTotal = Number(cdat.Ganancias) || 0;
     const gananciaPorRetiro = Math.floor(gananciasTotal / cantidadRetiros);
     
     for (let i = 1; i <= cantidadRetiros; i++) {

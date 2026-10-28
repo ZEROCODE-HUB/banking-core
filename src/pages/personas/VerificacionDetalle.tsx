@@ -53,7 +53,7 @@ export default function VerificacionDetalle() {
     try {
       let date;
       
-      // Si es un timestamp de Firebase
+      // Si es un timestamp con toDate (compatibilidad)
       if (dateValue && dateValue.toDate && typeof dateValue.toDate === 'function') {
         date = dateValue.toDate();
       }
@@ -114,7 +114,7 @@ export default function VerificacionDetalle() {
   const handleGuardar = async () => {
     if (!userData || !displayNameEditado.trim()) return;
     
-    // Usar el ID del documento de Firebase
+    // ID del registro en user_profiles
     const documentId = userData.docId || userData.id;
     
     setGuardando(true);
@@ -140,7 +140,7 @@ export default function VerificacionDetalle() {
       console.error('Error al actualizar nombre:', error);
       toast({
         title: "Error",
-        description: "Error al actualizar el nombre del usuario",
+        description: (error as any)?.message || "Error al actualizar el nombre del usuario",
         variant: "destructive"
       });
     } finally {
@@ -298,10 +298,10 @@ export default function VerificacionDetalle() {
         {/* Datos de registro */}
         <DataSection title="Datos de registro">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <DataField label="Tipo de documento" value={userData?.tipoDocumento || 'No disponible'} />
-            <DataField label="Numero de documento" value={userData?.nroDocumento || userData?.nit || userData?.id || 'No disponible'} />
-            <DataField label="Fecha de expedición del documento" value={formatDate(userData?.fechaExpedicion)} />
-            <DataField label="Ciudad de expedición del documento" value={userData?.ciudadExpedicion || 'No disponible'} />
+            <DataField label="Tipo de documento" value={userData?.tipo_documento || 'No disponible'} />
+            <DataField label="Numero de documento" value={userData?.nro_documento || userData?.nit || userData?.id || 'No disponible'} />
+            <DataField label="Fecha de expedición del documento" value={formatDate(userData?.fecha_expedicion)} />
+            <DataField label="Ciudad de expedición del documento" value={userData?.ciudad_expedicion || 'No disponible'} />
           </div>
         </DataSection>
 
@@ -324,7 +324,7 @@ export default function VerificacionDetalle() {
                 </p>
               )}
             </div>
-            <DataField label="Sexo" value={userData?.Genero || 'No disponible'} />
+            <DataField label="Sexo" value={userData?.genero || 'No disponible'} />
             <DataField label="Fecha de nacimiento" value={formatDate(userData?.fecha_nacimiento)} />
             <DataField label="Ciudad de nacimiento" value={userData?.ciudad_nacimiento || 'No disponible'} />
           </div>
@@ -364,11 +364,11 @@ export default function VerificacionDetalle() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <DataField 
                 label="¿Es usted una persona políticamente expuesta (Decreto 830 de 2021)?" 
-                value={userData?.figPPE ? 'Sí' : 'No'} 
+                value={userData?.flg_ppe ? 'Sí' : 'No'} 
               />
               <DataField 
                 label="¿Tiene familiares hasta segundo grado de consanguinidad, segundo de afinidad y primero civil que sean PEPs?" 
-                value={userData?.figRelativasPPE ? 'Sí' : 'No'} 
+                value={userData?.flg_relatives_ppe ? 'Sí' : 'No'} 
               />
             </div>
           </DataSection>
@@ -376,7 +376,11 @@ export default function VerificacionDetalle() {
           <DataSection title="Datos de origen de recursos">
             <DataField 
               label="Los recursos que entregaré en Ahorro y demás servicios provienen de las siguientes fuentes." 
-              value={userData?.origenRecursos || 'Salario'} 
+              value={
+                Array.isArray(userData?.funds_source) && userData.funds_source.length > 0
+                  ? userData.funds_source.join(', ')
+                  : userData?.digite_otras_fuentes || 'Salario'
+              } 
             />
           </DataSection>
         </div>
@@ -387,7 +391,7 @@ export default function VerificacionDetalle() {
             <DataField label="NIT de la empresa" value={empresaData?.nit || userData?.nit || 'No disponible'} />
             <DataField label="Empresa" value={empresaData?.razonsocial || userData?.empresa || 'No disponible'} />
             <DataField label="Ciudad" value={empresaData?.ciudad || userData?.ciudad || 'No disponible'} />
-            <DataField label="Tipo de contrato" value={userData?.tipoContrato || 'No disponible'} />
+            <DataField label="Tipo de vinculación" value={userData?.tipo_vinculacion || 'No disponible'} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <DataField label="Salario" value={formatCurrency(userData?.ingresos)} />

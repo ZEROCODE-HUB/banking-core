@@ -16,8 +16,6 @@ import logoAlianza from "@/assets/logo-alianza.png";
 import menuIcon from "@/assets/menu-icon.png";
 import contabilidadIcon from "@/assets/menu/contabilidad.png";
 import * as XLSX from "xlsx";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/supabase/config";
 import { excelreporteCopy } from "@/utils/excelReportes";
 import { excelreporte } from "@/utils/excelReportesAhorro";
 

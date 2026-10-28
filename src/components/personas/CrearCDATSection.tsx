@@ -6,10 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { buscarUsuarioPor, obtenerEmpresaPorRef, buscarUsuarioPorDocumento, crearDocumento } from "@/supabase/database";
+import { buscarUsuarioPor, obtenerEmpresaPorRef, buscarUsuarioPorDocumento } from "@/supabase/database";
 import { subirArchivoConFallback, subirPDF } from "@/supabase/storage";
-import { auth, db } from "@/supabase/config";
-import { doc, Timestamp } from "firebase/firestore";
+import { supabase } from "@/supabase/config";
 import {
   Select,
   SelectContent,
@@ -33,12 +32,17 @@ import { es } from "date-fns/locale";
 // Mock PDF images for contract step
 import contratoImg1 from "@/assets/menu/contabilidad.png";
 import contratoImg2 from "@/assets/menu/contabilidad.png";
+// Logos usados en el PDF del CDAT (copias locales de los assets originales)
+import pdfLogo from "@/assets/pdf-logo.png";
+import pdfLogoBW from "@/assets/pdf-logo-bw.png";
+import pdfSello from "@/assets/pdf-sello.jpg";
+import pdfVigilado from "@/assets/pdf-vigilado.jpg";
 
 interface UploadedFile {
   id: string;
   name: string;
   uploaded: boolean;
-  file?: File; // Archivo real para subir a Firebase
+  file?: File; // Archivo real para subir a Supabase Storage
 }
 
 interface CrearCDATSectionProps {
@@ -333,23 +337,22 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
     };
   };
 
-  // Función helper para formatear timestamps de Firebase
+  // Función helper para formatear fechas (ISO, Date o Timestamp serializado)
   const formatearTimestamp = (timestamp: any): string => {
     if (!timestamp) return 'N/A';
     try {
-      // Si es un timestamp de Firebase con .seconds
-      if (timestamp.seconds) {
+      if (typeof timestamp?.toDate === 'function') {
+        return timestamp.toDate().toLocaleDateString('es-ES');
+      }
+      if (typeof timestamp?.seconds === 'number') {
         return new Date(timestamp.seconds * 1000).toLocaleDateString('es-ES');
       }
-      // Si es una fecha string o número
-      if (timestamp) {
-        const fecha = new Date(timestamp);
-        if (!isNaN(fecha.getTime())) {
-          return fecha.toLocaleDateString('es-ES');
-        }
+      const fecha = new Date(timestamp);
+      if (!isNaN(fecha.getTime())) {
+        return fecha.toLocaleDateString('es-ES');
       }
       return String(timestamp);
-    } catch (error) {
+    } catch {
       return String(timestamp);
     }
   };
@@ -367,10 +370,10 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
     
     // URLs de imágenes
     const imageUrls = {
-      logo: 'https://firebasestorage.googleapis.com/v0/b/alianza-b7y88v.appspot.com/o/Alianza%20Pdf%20logo.png?alt=media&token=69805315-febc-43ef-9716-181c14efba26',
-      logoBW: 'https://firebasestorage.googleapis.com/v0/b/alianza-b7y88v.appspot.com/o/Alianza%20pdf%20logo%20design.png?alt=media&token=52460c6f-9061-42c0-8681-aa5dc3db4c7a',
-      sello: 'https://storage.googleapis.com/flutterflow-io-6f20.appspot.com/projects/alianza-b7y88v/assets/98bwu2s3373e/64af4586-f309-4ab3-aa9d-db083b675bda.jpg',
-      vigilado: 'https://storage.googleapis.com/flutterflow-io-6f20.appspot.com/projects/alianza-b7y88v/assets/70tcb6sabncz/d0b34d06-f023-4b51-a1fa-249512acd7ff.jpg'
+      logo: pdfLogo,
+      logoBW: pdfLogoBW,
+      sello: pdfSello,
+      vigilado: pdfVigilado
     };
     
     // Constantes de diseño (basadas en las imágenes)
@@ -854,13 +857,14 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
       setIsGeneratingPreview(true);
       
       // Verificar autenticación antes de empezar
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const currentUser = authData?.user;
+      if (authError || !currentUser) {
         throw new Error('Debes iniciar sesión para crear un CDAT.');
       }
       
       console.log('🔐 Usuario autenticado:', {
-        uid: currentUser.uid,
+        uid: currentUser.id,
         email: currentUser.email
       });
       
@@ -900,7 +904,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
           console.log('💾 Archivo disponible en localStorage:', pdfInfo.storageKey);
           toast({
             title: "PDF Guardado (Fallback)",
-            description: "PDF guardado en modo fallback. Firebase Storage no disponible.",
+            description: "PDF guardado en modo fallback. El almacenamiento no está disponible.",
             variant: "default",
           });
         } else if (pdfInfo.hasError) {
@@ -911,11 +915,11 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
             variant: "default",
           });
         } else {
-          console.log('✅ PDF subido a Firebase Storage exitosamente!');
+          console.log('✅ PDF subido exitosamente!');
           console.log('🔗 URL:', pdfInfo.url);
           toast({
             title: "PDF Subido",
-            description: "PDF subido exitosamente a Firebase Storage.",
+            description: "PDF subido exitosamente al almacenamiento.",
             variant: "default",
           });
         }
@@ -927,7 +931,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
         
         toast({
           title: "PDF Error",
-          description: "Hubo un problema subiendo el PDF a Firebase Storage.",
+          description: "Hubo un problema subiendo el PDF al almacenamiento.",
           variant: "destructive",
         });
       }
@@ -948,9 +952,9 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
       const fechaFinalizacion = new Date(fechaApertura);
       fechaFinalizacion.setMonth(fechaFinalizacion.getMonth() + meses);
       
-      // Crear referencias de Firebase
-      const idUsuarioRef = doc(db, 'user', datosCDAT.usuario?.uid || '');
-      const idAdminRef = doc(db, 'user', currentUser.uid);
+      // Identificadores de Supabase
+      const idUsuario = datosCDAT.usuario?.id || datosCDAT.usuario?.uid || null;
+      const documentoUsuario = datosCDAT.usuario?.nit || datosCDAT.usuario?.id || '';
       
       // Preparar arrays de archivos
       let archivosArray = []; // Solo archivos de origen de recursos
@@ -1018,114 +1022,91 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
         }
       }
       
-      // Crear el documento principal del CDAT
+      // Crear el CDAT en Supabase
       const cdatData = {
-        Archivos: archivosArray,
-        EA: tasa,
-        Estado: "Pendiente de firma",
-        FechaApertura: Timestamp.fromDate(fechaApertura),
-        FechaFinalizacion: Timestamp.fromDate(fechaFinalizacion),
-        Ganancias: ganancias,
-        Idadmin: idAdminRef,
-        Idusuario: idUsuarioRef,
-        Inversion: monto,
-        Rendimiento: rendimiento,
-        RetefuenteMonto: retefuenteMonto,
-        Retefuenteporcentaje: 0.04,
-        Tiempo: meses,
-        Tipooperacion: "Apertura CDAT",
-        UserEmail: datosCDAT.usuario?.email || '',
+        archivos: archivosArray,
+        ea: tasa,
+        estado: "Pendiente de firma",
+        fecha_apertura: fechaApertura.toISOString(),
+        fecha_finalizacion: fechaFinalizacion.toISOString(),
+        ganancias,
+        idadmin: currentUser.id,
+        idusuario: idUsuario,
+        inversion: monto,
+        rendimiento,
+        retefuente_monto: retefuenteMonto,
+        retefuenteporcentaje: 0.04,
+        tiempo: meses,
+        tipooperacion: "Apertura CDAT",
+        user_email: datosCDAT.usuario?.email || '',
         comprobantes: comprobantesArray,
-        documentousuario: datosCDAT.usuario?.nit || datosCDAT.usuario?.id || '',
+        documentousuario: documentoUsuario,
         firmado: false,
-        idCdat: Math.floor(Math.random() * (999999 - 100000 + 1)) + 100000,
+        id_cdat: Math.floor(Math.random() * (999999 - 100000 + 1)) + 100000,
         nombreusuario: datosCDAT.usuario?.display_name || '',
         observaciones: datosCDAT.declaracion?.observaciones || '',
         origenrecursos: datosCDAT.declaracion?.origenRecursos || ''
       };
       
-      // Crear el documento en Firestore
-      const cdatDocRef = await crearDocumento('Cdats', cdatData);
-      console.log('✅ CDAT creado con ID:', cdatDocRef.id);
+      const { data: cdatCreado, error: cdatError } = await supabase
+        .from('cdats')
+        .insert(cdatData)
+        .select('id, id_cdat')
+        .single();
+      if (cdatError) throw cdatError;
+      console.log('✅ CDAT creado con ID:', cdatCreado.id);
       
-      // Crear los retiros (anticipos) como subcolección
-      const numAnticipos = meses === 12 ? 4 : 2;
-      const anticipoPorPeriodo = Math.round(ganancias / numAnticipos);
+      // Retiros anticipados: `retiros_cdat` no tiene FK hacia `cdats`, así que
+      // no se pueden asociar a este contrato. La vista los calcula desde
+      // `tiempo`, `fecha_apertura`, `ganancias` e `inversion`.
       
-      for (let i = 0; i < numAnticipos; i++) {
-        const fechaRetiro = new Date(fechaApertura);
-        fechaRetiro.setMonth(fechaRetiro.getMonth() + (i + 1) * 3);
-        
-        const retiroData = {
-          Estado: "Sin cobrar", // Cambiar a "Sin cobrar" para que funcione con la cloud function
-          Fecharetiro: Timestamp.fromDate(fechaRetiro),
-          Monto: i === numAnticipos - 1 ? (ganancias - (anticipoPorPeriodo * (numAnticipos - 1))) : anticipoPorPeriodo
-        };
-        
-        // Crear subcolección RetirosCdat (como en la estructura real)
-        await crearDocumento(`Cdats/${cdatDocRef.id}/RetirosCdat`, retiroData);
-        console.log(`💰 Anticipo ${i + 1} creado para fecha:`, fechaRetiro.toLocaleDateString());
-      }
-      
-      // Crear la subcolección confirmacionretiros con el depósito inicial
+      // Registrar el depósito inicial en confirmacionretiros
       const depositoInicialData = {
-        ID: Number(datosCDAT.usuario?.nit || datosCDAT.usuario?.id || Date.now()),
+        id_field: Math.floor(Math.random() * (19999 - 10000 + 1)) + 10000,
         celusuario: datosCDAT.usuario?.telefono || '',
         emailusuario: datosCDAT.usuario?.email || '',
         estados: "completado",
-        fechaSolicitud: Timestamp.fromDate(new Date()),
-        fecharetiro: Timestamp.fromDate(fechaApertura),
-        monto: monto, // Monto de la inversión inicial
-        nitusuario: datosCDAT.usuario?.nit || datosCDAT.usuario?.id || '',
+        fecha_solicitud: new Date().toISOString(),
+        fecharetiro: fechaApertura.toISOString(),
+        monto: monto,
+        nitusuario: documentoUsuario,
         nombreusuario: datosCDAT.usuario?.display_name || '',
         observaciones: "Transacción completada",
-        tipodeoperacion: "entrante", // Dinero que entra (depósito)
-        usuariosid: idUsuarioRef
+        tipodeoperacion: "entrante",
+        usuariosid: idUsuario ? String(idUsuario) : null,
+        id_cdat: cdatCreado.id_cdat,
+        isahorrocdat: false
       };
       
-      // Crear el documento del depósito inicial en confirmacionretiros
-      await crearDocumento(`Cdats/${cdatDocRef.id}/confirmacionretiros`, depositoInicialData);
-      console.log('✅ Depósito inicial creado en confirmacionretiros');
+      const { error: depositoError } = await supabase
+        .from('confirmacionretiros')
+        .insert(depositoInicialData);
+      if (depositoError) {
+        console.error('⚠️ CDAT creado pero sin depósito inicial:', depositoError);
+        toast({
+          title: "CDAT creado con advertencia",
+          description: "No se pudo registrar el depósito inicial en confirmacionretiros.",
+          variant: "destructive",
+        });
+      } else {
+        console.log('✅ Depósito inicial creado en confirmacionretiros');
+      }
       
       // Mostrar modal de éxito
       setShowSuccessModal(true);
       
       toast({
         title: "CDAT Creado Exitosamente",
-        description: `CDAT creado con ID: ${cdatDocRef.id}. RetirosCdat y confirmacionretiros creados. ${pdfInfo?.isBase64 ? 'PDF almacenado en base de datos.' : pdfInfo?.isDownloaded ? 'Archivos descargados automáticamente.' : 'Archivos procesados correctamente.'}`,
+        description: `CDAT creado con ID: ${cdatCreado.id}. ${pdfInfo?.isBase64 ? 'PDF almacenado en base de datos.' : pdfInfo?.isDownloaded ? 'Archivos descargados automáticamente.' : 'Archivos procesados correctamente.'}`,
         variant: "default",
       });
       
     } catch (error) {
       console.error('❌ Error al crear CDAT:', error);
       
-      // Información detallada del error
-      let errorMessage = 'Error desconocido';
-      let errorDetails = '';
-      
-      if (error.code === 'permission-denied') {
-        errorMessage = 'Permisos insuficientes';
-        errorDetails = 'Tu cuenta no tiene permisos para crear CDATs. Contacta al administrador.';
-      } else if (error.code === 'unauthenticated') {
-        errorMessage = 'No autenticado';
-        errorDetails = 'Debes iniciar sesión para crear un CDAT.';
-      } else if (error.code === 'storage/unauthorized') {
-        errorMessage = 'Error en almacenamiento';
-        errorDetails = 'No tienes permisos para subir archivos.';
-      } else if (error.message) {
-        errorMessage = error.message;
-        errorDetails = `Código de error: ${error.code || 'N/A'}`;
-      }
-      
-      console.log('🔍 Detalles del error:', {
-        code: error.code,
-        message: error.message,
-        stack: error.stack
-      });
-      
       toast({
-        title: errorMessage,
-        description: errorDetails || `Error al crear el CDAT: ${error.message}`,
+        title: "No se pudo crear el CDAT",
+        description: (error as any)?.message || "Error desconocido al crear el CDAT",
         variant: "destructive",
       });
     } finally {

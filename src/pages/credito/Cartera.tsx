@@ -6,27 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Search, Settings, FileText, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface CreditPortfolio {
-  id: string;
-  nombreCompleto: string;
-  numeroDocumento: string;
-  montoCredito: number;
-  saldoPendiente: number;
-  fechaDesembolso: string;
-  fechaVencimiento: string;
-  cuotasPagadas: number;
-  cuotasTotales: number;
-  estadoCartera: PortfolioStatus;
-  diasMora: number;
-}
-
-type PortfolioStatus = 
-  | "al-dia"
-  | "vencido"
-  | "mora-temprana"
-  | "mora-tardia"
-  | "castigo";
+import {
+  CarteraDetailModal,
+  type CreditPortfolio,
+  type PortfolioStatus,
+} from "@/components/credito/CarteraDetailModal";
 
 interface StatusFilter {
   key: PortfolioStatus | "todos";
@@ -119,6 +103,7 @@ const formatCurrency = (amount: number): string => {
 export default function Cartera() {
   const [activeFilter, setActiveFilter] = useState<PortfolioStatus | "todos">("todos");
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCredit, setSelectedCredit] = useState<CreditPortfolio | null>(null);
 
   const filteredPortfolio = mockedPortfolio.filter(credit => {
     const matchesSearch = 
@@ -306,7 +291,14 @@ export default function Cartera() {
                         </Badge>
                       </div>
                       <div className="p-4 flex justify-center gap-2">
-                        <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => setSelectedCredit(credit)}
+                          title="Ver detalle"
+                          aria-label={`Ver detalle de ${credit.nombreCompleto}`}
+                        >
                           <FileText size={14} />
                         </Button>
                       </div>
@@ -318,6 +310,14 @@ export default function Cartera() {
           </CardContent>
         </Card>
       </div>
+
+      <CarteraDetailModal
+        open={!!selectedCredit}
+        onOpenChange={(open) => {
+          if (!open) setSelectedCredit(null);
+        }}
+        credit={selectedCredit}
+      />
     </MainLayout>
   );
 }

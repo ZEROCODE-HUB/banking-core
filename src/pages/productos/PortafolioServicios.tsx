@@ -9,8 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { collection, getDocs, addDoc, updateDoc, doc, query, where } from "firebase/firestore";
-import { db } from "@/supabase/config";
+import { supabase } from "@/supabase/config";
 import logoAlianza from "@/assets/logo-alianza.png";
 import menuIcon from "@/assets/menu-icon.png";
 import productosIcon from "@/assets/menu/productos.png";
@@ -73,30 +72,30 @@ export default function PortafolioServicios() {
   const [saving, setSaving] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Product data from Firebase
+  // Product data from Supabase
   const [ahorros, setAhorros] = useState<Producto[]>([]);
   const [creditos, setCreditos] = useState<Producto[]>([]);
   const [cdats, setCdats] = useState<Producto[]>([]);
 
-  // Cargar datos desde Firebase
+  // Cargar datos desde Supabase
   const cargarProductos = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Cargando productos desde Firebase...');
+      console.log('🔄 Cargando productos desde Supabase...');
       
-      const servicesRef = collection(db, 'Services');
-      const querySnapshot = await getDocs(servicesRef);
+      const { data, error } = await supabase.from('services').select('*');
+      if (error) throw error;
       
-      console.log('📦 QuerySnapshot:', querySnapshot);
-      console.log('📊 Cantidad de documentos:', querySnapshot.size);
-      console.log('🔍 Está vacío?:', querySnapshot.empty);
+      const services = data ?? [];
       
-      if (querySnapshot.empty) {
-        console.log('⚠️ No se encontraron documentos en la colección services');
+      console.log('📊 Cantidad de servicios:', services.length);
+      
+      if (services.length === 0) {
+        console.log('⚠️ No se encontraron documentos en la tabla services');
         console.log('🔍 Verificar:');
-        console.log('   - Que la colección se llame exactamente "Services"');
-        console.log('   - Que existan documentos en Firebase');
-        console.log('   - Los permisos de lectura en Firestore');
+        console.log('   - Que la tabla se llame exactamente "services"');
+        console.log('   - Que existan documentos en Supabase');
+        console.log('   - Las políticas RLS de lectura');
         setAhorros([]);
         setCreditos([]);
         setCdats([]);
@@ -107,36 +106,35 @@ export default function PortafolioServicios() {
       const productosCreditos: Producto[] = [];
       const productosCdats: Producto[] = [];
       
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        console.log('📄 Documento service:', doc.id, data);
-        console.log('🏷️ ServiceMainType:', data.ServiceMainType);
-        console.log('📝 TypesOfProductName:', data.TypesOfProductName);
-        console.log('📊 EA:', data.EA);
-        console.log('📈 MV:', data.MV);
+      services.forEach((data: any) => {
+        console.log('📄 Documento service:', data.id, data);
+        console.log('🏷️ service_main_type:', data.service_main_type);
+        console.log('📝 types_of_product_name:', data.types_of_product_name);
+        console.log('📊 ea:', data.ea);
+        console.log('📈 mv:', data.mv);
         
         const producto: Producto = {
-          id: doc.id,
-          tipo: data.TypesOfProductName || 'Sin nombre',
-          ea: data.EA || 0,
-          mv: data.MV || 0,
-          category: data.ServiceMainType === 'Ahorros' ? 'ahorros' : 
-                   data.ServiceMainType === 'CDAT' ? 'cdat' : 'credito'
+          id: data.id,
+          tipo: data.types_of_product_name || 'Sin nombre',
+          ea: data.ea || 0,
+          mv: data.mv || 0,
+          category: data.service_main_type === 'Ahorros' ? 'ahorros' : 
+                   data.service_main_type === 'CDAT' ? 'cdat' : 'credito'
         };
         
         console.log('✅ Producto procesado:', producto);
         
-        if (data.ServiceMainType === 'Ahorros') {
+        if (data.service_main_type === 'Ahorros') {
           productosAhorros.push(producto);
           console.log('💰 Agregado a Ahorros');
-        } else if (data.ServiceMainType === 'CDAT') {
+        } else if (data.service_main_type === 'CDAT') {
           productosCdats.push(producto);
           console.log('🏦 Agregado a CDAT');
-        } else if (data.ServiceMainType === 'Credito') {
+        } else if (data.service_main_type === 'Credito') {
           productosCreditos.push(producto);
           console.log('💳 Agregado a Crédito');
         } else {
-          console.log('⚠️ ServiceMainType no reconocido:', data.ServiceMainType);
+          console.log('⚠️ service_main_type no reconocido:', data.service_main_type);
         }
       });
       
@@ -153,7 +151,7 @@ export default function PortafolioServicios() {
       console.error('❌ Error cargando productos:', error);
       toast({
         title: "Error al cargar productos",
-        description: "No se pudieron cargar los datos desde Firebase",
+        description: "No se pudieron cargar los datos desde Supabase",
         variant: "destructive",
         duration: 3000,
       });
@@ -238,14 +236,19 @@ export default function PortafolioServicios() {
         console.log('🔄 Actualizando producto:', editingProduct.producto.id);
         
         if (editingProduct.producto.id) {
-          const docRef = doc(db, 'Services', editingProduct.producto.id);
-          await updateDoc(docRef, {
-            TypesOfProductName: nuevoProducto.tipo,
-            EA: nuevoProducto.ea,
-            MV: nuevoProducto.mv,
-            ServiceMainType: currentCategory === 'ahorros' ? 'Ahorros' : 
-                            currentCategory === 'cdat' ? 'CDAT' : 'Credito',
-          });
+          const { error } = await supabase
+            .from('services')
+            .update({
+              types_of_product_name: nuevoProducto.tipo,
+              ea: nuevoProducto.ea,
+              mv: nuevoProducto.mv,
+              service_main_type: currentCategory === 'ahorros' ? 'Ahorros' : 
+                              currentCategory === 'cdat' ? 'CDAT' : 'Credito',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', editingProduct.producto.id);
+
+          if (error) throw error;
         }
         
         toast({
@@ -256,14 +259,17 @@ export default function PortafolioServicios() {
         // Crear nuevo producto
         console.log('🆕 Creando nuevo producto:', nuevoProducto);
         
-        await addDoc(collection(db, 'Services'), {
-          TypesOfProductName: nuevoProducto.tipo,
-          EA: nuevoProducto.ea,
-          MV: nuevoProducto.mv,
-          ServiceMainType: currentCategory === 'ahorros' ? 'Ahorros' : 
+        const { error } = await supabase.from('services').insert({
+          types_of_product_name: nuevoProducto.tipo,
+          ea: nuevoProducto.ea,
+          mv: nuevoProducto.mv,
+          service_main_type: currentCategory === 'ahorros' ? 'Ahorros' : 
                           currentCategory === 'cdat' ? 'CDAT' : 'Credito',
-          createdAt: new Date(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
+
+        if (error) throw error;
         
         toast({
           title: "Producto creado con éxito",
