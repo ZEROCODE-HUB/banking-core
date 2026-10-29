@@ -222,6 +222,7 @@ export default function Dashboard() {
     }).format(amount);
   };
 
+  // Las entradas con path "#" todavía no tienen página asignada.
   const menuItems = [
     { icon: consultarIcon, label: "Consultar", path: "/personas/consultar" },
     { icon: personasIcon, label: "Personas", path: "/personas/solicitudes" },
@@ -230,7 +231,7 @@ export default function Dashboard() {
     { icon: sarlaftIcon, label: "SARLAF", path: "#" },
     { icon: conveniosIcon, label: "Convenios", path: "#" },
     { icon: contabilidadIcon, label: "Contabilidad", path: "/contabilidad/ahorro" },
-    { icon: areaFinancieraIcon, label: "Área financiera", path: "#" },
+    { icon: areaFinancieraIcon, label: "Área financiera", path: "/credito/estado-general" },
     { icon: legalIcon, label: "Legal", path: "#" },
     { icon: huellaConsultaIcon, label: "Huella de consultas", path: "#" },
     { icon: productosIcon, label: "Productos", path: "/productos/portafolio" },
@@ -259,14 +260,14 @@ export default function Dashboard() {
                   count={loadingRetiros ? 0 : retirosPendientes.count}
                   amount={loadingRetiros ? "$ 0" : formatCurrency(retirosPendientes.amount).replace('$', '$ ')}
                   loading={loadingRetiros}
-                  onReview={() => navigate("/personas/solicitudes?section=ahorros&tab=retiros")}
+                  onReview={() => navigate("/personas/retiro-ahorros")}
                 />
                 <TransactionCard 
                   title="Retiros pendientes de CDAT"
                   count={loadingRetirosCDAT ? 0 : retirosCDATpendientes.count}
                   amount={loadingRetirosCDAT ? "$ 0" : formatCurrency(retirosCDATpendientes.amount).replace('$', '$ ')}
                   loading={loadingRetirosCDAT}
-                  onReview={() => navigate("/personas/solicitudes?section=cdat&tab=retiros")}
+                  onReview={() => navigate("/personas/cdat?seccion=retiros-cdat")}
                 />
               </div>
             </section>
@@ -279,6 +280,7 @@ export default function Dashboard() {
                   title="Solicitudes pendientes de creditos"
                   count={0}
                   amount="$ 0.000"
+                  onReview={() => navigate("/personas/solicitudes?seccion=creditos")}
                 />
               </div>
             </section>

@@ -54,7 +54,7 @@ const homeMenuItems = [
   { icon: sarlaftIcon, label: "SARLAF", path: "#" },
   { icon: conveniosIcon, label: "Convenios", path: "#" },
   { icon: contabilidadIcon, label: "Contabilidad", path: "/contabilidad/ahorro" },
-  { icon: areaFinancieraIcon, label: "Área financiera", path: "#" },
+  { icon: areaFinancieraIcon, label: "Área financiera", path: "/credito/estado-general" },
   { icon: legalIcon, label: "Legal", path: "#" },
   { icon: huellaConsultaIcon, label: "Huella de consultas", path: "#" },
   { icon: productosIcon, label: "Productos", path: "/productos/portafolio" },
