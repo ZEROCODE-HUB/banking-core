@@ -171,7 +171,6 @@ export default function Solicitudes() {
   const [currentPage, setCurrentPage] = useState(1);
 
   // Solicitudes search
-  const [tipoDocumento, setTipoDocumento] = useState("Identificación");
   const [numeroCedula, setNumeroCedula] = useState("");
   const [documentSearch, setDocumentSearch] = useState("");
   
@@ -486,19 +485,6 @@ export default function Solicitudes() {
                 {/* Search bar */}
                 <div className="flex items-center gap-4 mb-6">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground whitespace-nowrap">Tipo de documento</span>
-                    <Select value={tipoDocumento} onValueChange={setTipoDocumento}>
-                      <SelectTrigger className="w-48">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Identificación">Identificación</SelectItem>
-                        <SelectItem value="Cédula de extranjería">Cédula de extranjería</SelectItem>
-                        <SelectItem value="Pasaporte">Pasaporte</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground whitespace-nowrap">Número de cédula</span>
                     <Input
                       placeholder="Escribe el número de cédula o nombre"
@@ -659,19 +645,6 @@ export default function Solicitudes() {
 
                 {/* Search bar */}
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground whitespace-nowrap">Tipo de documento</span>
-                    <Select value={tipoDocumento} onValueChange={setTipoDocumento}>
-                      <SelectTrigger className="w-48">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Identificación">Identificación</SelectItem>
-                        <SelectItem value="Cédula de extranjería">Cédula de extranjería</SelectItem>
-                        <SelectItem value="Pasaporte">Pasaporte</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground whitespace-nowrap">Número de cédula</span>
                     <Input

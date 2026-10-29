@@ -202,30 +202,33 @@ export const crearDocumento = async (rutaColeccion: string, datos: any) => {
   throw new Error('Formato de ruta no válido');
 };
 
+/**
+ * Carga una subcolección heredada del modelo anterior.
+ *
+ * Solo `confirmacionretiros` tiene una relación real en Supabase: se enlaza
+ * por `id_cdat` con `cdats.id_cdat`. El resto de tablas no tiene una columna
+ * genérica (`cdat_id`, `parent_id`, `ahorros_id`) que permita resolver una
+ * subcolección, así que se devuelve una lista vacía en lugar de lanzar
+ * consultas que fallan en cada llamada.
+ */
 export const obtenerSubcoleccion = async (rutaDocumento: string, nombreSubcoleccion: string) => {
-  // rutaDocumento = 'cdats/{id}' -> tabla confirmacionretiros where id_cdat = cdats.id_cdat
   const table = toSupabaseTable(nombreSubcoleccion);
-  const docId = rutaDocumento.split('/').pop()!;
+  if (table !== 'confirmacionretiros') return [];
 
-  if (table === 'confirmacionretiros') {
-    const { data: cdat } = await supabase.from('cdats').select('id_cdat').eq('id', docId).maybeSingle();
-    if (!cdat || (cdat as any).id_cdat == null) return [];
-    const { data, error } = await supabase
-      .from('confirmacionretiros')
-      .select('*')
-      .eq('id_cdat', (cdat as any).id_cdat);
-    if (error) throw error;
-    return normalizeRows(data ?? []);
-  }
+  const docId = rutaDocumento.split('/').pop();
+  if (!docId) return [];
 
-  // intentar columna fk común: cdat_id
-  const fkCandidates = ['cdat_id', 'parent_id', 'ahorros_id'];
-  for (const fk of fkCandidates) {
-    const { data, error } = await supabase.from(table).select('*').eq(fk, docId);
-    if (!error && data && data.length > 0) return normalizeRows(data);
-  }
-  // fallback: seleccionar todo y filtrar vacío
-  const { data, error } = await supabase.from(table).select('*').eq('cdat_id', docId);
+  const { data: cdat } = await supabase
+    .from('cdats')
+    .select('id_cdat')
+    .eq('id', docId)
+    .maybeSingle();
+  if (!cdat || (cdat as any).id_cdat == null) return [];
+
+  const { data, error } = await supabase
+    .from('confirmacionretiros')
+    .select('*')
+    .eq('id_cdat', (cdat as any).id_cdat);
   if (error) throw error;
   return normalizeRows(data ?? []);
 };
