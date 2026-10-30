@@ -15,19 +15,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import logoAlianza from "@/assets/logo-alianza.png";
 
-// Menu icons for dropdown
-import sarlaftIcon from "@/assets/menu/sarlaft.png";
-import conveniosIcon from "@/assets/menu/convenios.png";
-import contabilidadIcon from "@/assets/menu/contabilidad.png";
-import areaFinancieraIcon from "@/assets/menu/area-financiera.png";
-import legalIcon from "@/assets/menu/legal.png";
-import huellaConsultaIcon from "@/assets/menu/huella-consulta.png";
-import consultarIcon from "@/assets/menu/consultar.png";
-import personasIcon from "@/assets/menu/personas.png";
-import empresasIcon from "@/assets/menu/empresas.png";
-import fondosIcon from "@/assets/menu/fondos.png";
-import productosIcon from "@/assets/menu/productos.png";
-
 interface MenuItem {
   label: string;
   icon?: React.ReactNode;
@@ -45,20 +32,6 @@ interface AppSidebarProps {
   sections: SidebarSection[];
   className?: string;
 }
-
-const homeMenuItems = [
-  { icon: consultarIcon, label: "Consultar", path: "/personas/consultar" },
-  { icon: personasIcon, label: "Personas", path: "/personas/solicitudes" },
-  { icon: empresasIcon, label: "Empresas", path: "#" },
-  { icon: fondosIcon, label: "Fondos y Asociaciones", path: "/fondos/independientes" },
-  { icon: sarlaftIcon, label: "SARLAF", path: "#" },
-  { icon: conveniosIcon, label: "Convenios", path: "#" },
-  { icon: contabilidadIcon, label: "Contabilidad", path: "/contabilidad/ahorro" },
-  { icon: areaFinancieraIcon, label: "Área financiera", path: "/credito/estado-general" },
-  { icon: legalIcon, label: "Legal", path: "#" },
-  { icon: huellaConsultaIcon, label: "Huella de consultas", path: "#" },
-  { icon: productosIcon, label: "Productos", path: "/productos/portafolio" },
-];
 
 export function AppSidebar({ sections, className }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);

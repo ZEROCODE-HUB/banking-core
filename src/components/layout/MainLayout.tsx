@@ -4,19 +4,8 @@ import { AppSidebar } from "./AppSidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { Users, ArrowRight, CreditCard, BarChart3, Wallet } from "lucide-react";
 import menuIcon from "@/assets/menu-icon.png";
-
-// Menu icons for dropdown
-import sarlaftIcon from "@/assets/menu/sarlaft.png";
-import conveniosIcon from "@/assets/menu/convenios.png";
-import contabilidadIcon from "@/assets/menu/contabilidad.png";
-import areaFinancieraIcon from "@/assets/menu/area-financiera.png";
-import legalIcon from "@/assets/menu/legal.png";
-import huellaConsultaIcon from "@/assets/menu/huella-consulta.png";
-import consultarIcon from "@/assets/menu/consultar.png";
-import personasIcon from "@/assets/menu/personas.png";
-import empresasIcon from "@/assets/menu/empresas.png";
 import fondosIcon from "@/assets/menu/fondos.png";
-import productosIcon from "@/assets/menu/productos.png";
+import { buildHomeNavigation } from "@/config/navigation";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -97,20 +86,8 @@ const creditoSections = [
   },
 ];
 
-const homeMenuItems = [
-  { icon: consultarIcon, label: "Inicio", path: "/" },
-  { icon: consultarIcon, label: "Consultar", path: "/personas/consultar" },
-  { icon: personasIcon, label: "Personas", path: "/personas/solicitudes" },
-  { icon: empresasIcon, label: "Empresas", path: "#" },
-  { icon: fondosIcon, label: "Fondos y Asociaciones", path: "/fondos/independientes" },
-  { icon: areaFinancieraIcon, label: "Crédito", path: "/credito/estado-general" },
-  { icon: sarlaftIcon, label: "SARLAF", path: "#" },
-  { icon: conveniosIcon, label: "Convenios", path: "#" },
-  { icon: contabilidadIcon, label: "Contabilidad", path: "/contabilidad/ahorro" },
-  { icon: legalIcon, label: "Legal", path: "#" },
-  { icon: huellaConsultaIcon, label: "Huella de consultas", path: "#" },
-  { icon: productosIcon, label: "Productos", path: "/productos/portafolio" },
-];
+// El nombre de la sección de crédito está pendiente de confirmación del cliente.
+const homeMenuItems = buildHomeNavigation({ labels: { credito: "Crédito" } });
 
 export function MainLayout({ children, sidebarType, pageTitle }: MainLayoutProps) {
   const { user } = useAuth();

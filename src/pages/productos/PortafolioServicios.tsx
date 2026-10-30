@@ -14,32 +14,9 @@ import logoAlianza from "@/assets/logo-alianza.png";
 import menuIcon from "@/assets/menu-icon.png";
 import productosIcon from "@/assets/menu/productos.png";
 
-// Menu icons for dropdown
-import sarlaftIcon from "@/assets/menu/sarlaft.png";
-import conveniosIcon from "@/assets/menu/convenios.png";
-import contabilidadIcon from "@/assets/menu/contabilidad.png";
-import areaFinancieraIcon from "@/assets/menu/area-financiera.png";
-import legalIcon from "@/assets/menu/legal.png";
-import huellaConsultaIcon from "@/assets/menu/huella-consulta.png";
-import consultarIcon from "@/assets/menu/consultar.png";
-import personasIcon from "@/assets/menu/personas.png";
-import empresasIcon from "@/assets/menu/empresas.png";
-import fondosIcon from "@/assets/menu/fondos.png";
+import { buildHomeNavigation } from "@/config/navigation";
 
-const homeMenuItems = [
-  { icon: consultarIcon, label: "Inicio", path: "/" },
-  { icon: consultarIcon, label: "Consultar", path: "/personas/consultar" },
-  { icon: personasIcon, label: "Personas", path: "/personas/solicitudes" },
-  { icon: empresasIcon, label: "Empresas", path: "#" },
-  { icon: fondosIcon, label: "Fondos y Asociaciones", path: "/fondos/independientes" },
-  { icon: sarlaftIcon, label: "SARLAF", path: "#" },
-  { icon: conveniosIcon, label: "Convenios", path: "#" },
-  { icon: contabilidadIcon, label: "Contabilidad", path: "/contabilidad/ahorro" },
-  { icon: areaFinancieraIcon, label: "Área financiera", path: "/credito/estado-general" },
-  { icon: legalIcon, label: "Legal", path: "#" },
-  { icon: huellaConsultaIcon, label: "Huella de consultas", path: "#" },
-  { icon: productosIcon, label: "Productos", path: "/productos/portafolio" },
-];
+const homeMenuItems = buildHomeNavigation();
 
 interface Producto {
   id?: string;

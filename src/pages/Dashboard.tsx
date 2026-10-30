@@ -5,19 +5,7 @@ import { obtenerTransaccionesPorEstadoRetiro, obtenerColeccion, obtenerSubcolecc
 import { TopHeader } from "@/components/layout/TopHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowRight, History } from "lucide-react";
-
-// Menu icons
-import sarlaftIcon from "@/assets/menu/sarlaft.png";
-import conveniosIcon from "@/assets/menu/convenios.png";
-import contabilidadIcon from "@/assets/menu/contabilidad.png";
-import areaFinancieraIcon from "@/assets/menu/area-financiera.png";
-import legalIcon from "@/assets/menu/legal.png";
-import huellaConsultaIcon from "@/assets/menu/huella-consulta.png";
-import consultarIcon from "@/assets/menu/consultar.png";
-import personasIcon from "@/assets/menu/personas.png";
-import empresasIcon from "@/assets/menu/empresas.png";
-import fondosIcon from "@/assets/menu/fondos.png";
-import productosIcon from "@/assets/menu/productos.png";
+import { buildHomeNavigation } from "@/config/navigation";
 
 interface TransactionCardProps {
   title: string;
@@ -222,20 +210,7 @@ export default function Dashboard() {
     }).format(amount);
   };
 
-  // Las entradas con path "#" todavía no tienen página asignada.
-  const menuItems = [
-    { icon: consultarIcon, label: "Consultar", path: "/personas/consultar" },
-    { icon: personasIcon, label: "Personas", path: "/personas/solicitudes" },
-    { icon: empresasIcon, label: "Empresas", path: "#" },
-    { icon: fondosIcon, label: "Fondos y Asociaciones", path: "/fondos/independientes" },
-    { icon: sarlaftIcon, label: "SARLAF", path: "#" },
-    { icon: conveniosIcon, label: "Convenios", path: "#" },
-    { icon: contabilidadIcon, label: "Contabilidad", path: "/contabilidad/ahorro" },
-    { icon: areaFinancieraIcon, label: "Área financiera", path: "/credito/estado-general" },
-    { icon: legalIcon, label: "Legal", path: "#" },
-    { icon: huellaConsultaIcon, label: "Huella de consultas", path: "#" },
-    { icon: productosIcon, label: "Productos", path: "/productos/portafolio" },
-  ];
+  const menuItems = buildHomeNavigation({ includeHome: false });
 
   return (
     <div className="min-h-screen bg-background">
