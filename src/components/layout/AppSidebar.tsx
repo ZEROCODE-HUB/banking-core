@@ -12,8 +12,9 @@ import {
   Play,
   ArrowRight
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import logoAlianza from "@/assets/logo-alianza.png";
+import { ProfileCard } from "@/components/profile/ProfileCard";
+import { ProfileDialog } from "@/components/profile/ProfileDialog";
 
 interface MenuItem {
   label: string;
@@ -37,6 +38,7 @@ export function AppSidebar({ sections, className }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [showHomeMenu, setShowHomeMenu] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth(); // Agregar user del contexto de auth
@@ -290,30 +292,11 @@ export function AppSidebar({ sections, className }: AppSidebarProps) {
 
       {/* User Profile - Outside blue area */}
       <div className="mt-auto p-4">
-        <div className={cn(
-          "flex items-center gap-3",
-          collapsed && "justify-center"
-        )}>
-          <Avatar className="w-10 h-10">
-            <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face" />
-            <AvatarFallback>
-              {user?.displayName 
-                ? user.displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-                : user?.email 
-                ? user.email.slice(0, 2).toUpperCase()
-                : "U"
-              }
-            </AvatarFallback>
-          </Avatar>
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm truncate text-foreground">
-                {user?.userData?.display_name || user?.displayName || user?.email || "Usuario"}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">Usuario administrador</p>
-            </div>
-          )}
-        </div>
+        <ProfileCard
+          user={user}
+          compact={collapsed}
+          onSettingsClick={() => setProfileOpen(true)}
+        />
         <button 
           onClick={handleLogout}
           className={cn(
@@ -325,6 +308,8 @@ export function AppSidebar({ sections, className }: AppSidebarProps) {
           {!collapsed && <span className="text-sm font-medium">Cerrar sesión</span>}
         </button>
       </div>
+
+      <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} user={user} />
     </aside>
   );
 }

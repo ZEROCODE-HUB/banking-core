@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogOut, ChevronUp, ChevronDown, Play, ArrowRight, Pencil, Loader2 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -15,6 +14,8 @@ import menuIcon from "@/assets/menu-icon.png";
 import productosIcon from "@/assets/menu/productos.png";
 
 import { buildHomeNavigation } from "@/config/navigation";
+import { ProfileCard } from "@/components/profile/ProfileCard";
+import { ProfileDialog } from "@/components/profile/ProfileDialog";
 
 const homeMenuItems = buildHomeNavigation();
 
@@ -37,6 +38,7 @@ export default function PortafolioServicios() {
   const { user, logout } = useAuth();
   const { toast } = useToast();
   const [showHomeMenu, setShowHomeMenu] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [portafolioExpanded, setPortafolioExpanded] = useState(true);
   const [cuentasExpanded, setCuentasExpanded] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -446,25 +448,7 @@ export default function PortafolioServicios() {
 
         {/* User Profile - Outside blue area */}
         <div className="mt-auto p-4">
-          <div className="flex items-center gap-3">
-            <Avatar className="w-10 h-10">
-              <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face" />
-              <AvatarFallback>
-                {user?.displayName 
-                  ? user.displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-                  : user?.email 
-                  ? user.email.slice(0, 2).toUpperCase()
-                  : "U"
-                }
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm truncate text-foreground">
-                {user?.userData?.display_name || user?.displayName || user?.email || "Usuario"}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">Usuario administrador</p>
-            </div>
-          </div>
+          <ProfileCard user={user} onSettingsClick={() => setProfileOpen(true)} />
           <button 
             onClick={handleLogout}
             className="mt-4 flex items-center gap-2 text-primary hover:text-primary/80 transition-colors w-full bg-red-50 rounded-xl py-3 justify-center"
@@ -473,6 +457,8 @@ export default function PortafolioServicios() {
             <span className="text-sm font-medium">Cerrar sesión</span>
           </button>
         </div>
+
+        <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} user={user} />
       </aside>
 
       {/* Main Content */}

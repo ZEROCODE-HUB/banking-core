@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Settings, LogOut } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { ProfileDialog } from "@/components/layout/ProfileDialog";
+import { ProfileCard } from "@/components/profile/ProfileCard";
+import { ProfileDialog } from "@/components/profile/ProfileDialog";
 import logoIcon from "@/assets/logo.png";
 
 export function TopHeader() {
@@ -22,10 +22,6 @@ export function TopHeader() {
     }
   };
 
-  // Obtener nombre del usuario - priorizar display_name de la BD
-  const userName = user?.userData?.display_name || user?.displayName || user?.email || "Usuario";
-  const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-
   return (
     <header className="bg-transparent px-6 py-3 flex items-center justify-between">
       <div className="flex items-center gap-4">
@@ -40,32 +36,20 @@ export function TopHeader() {
         </Link>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-3">
-          <Avatar className="w-10 h-10">
-            <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face" />
-            <AvatarFallback>{userInitials}</AvatarFallback>
-          </Avatar>
-          <div className="hidden md:block">
-            <p className="font-semibold text-sm text-foreground">{userName}</p>
-            <p className="text-xs text-muted-foreground">Usuario administrador</p>
-          </div>
+      <div className="flex items-center gap-2">
+        <div className="hidden md:block">
+          <ProfileCard user={user} onSettingsClick={() => setProfileOpen(true)} />
+        </div>
+        <div className="md:hidden">
+          <ProfileCard user={user} compact onSettingsClick={() => setProfileOpen(true)} />
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="text-muted-foreground hover:text-foreground"
-          onClick={() => setProfileOpen(true)}
-          title="Mi perfil"
-          aria-label="Mi perfil"
-        >
-          <Settings size={20} />
-        </Button>
-        <Button 
-          variant="ghost" 
-          size="icon" 
           className="text-primary hover:text-primary/80"
           onClick={handleLogout}
+          title="Cerrar sesión"
+          aria-label="Cerrar sesión"
         >
           <LogOut size={20} />
         </Button>

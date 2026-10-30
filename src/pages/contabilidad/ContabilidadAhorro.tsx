@@ -4,7 +4,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarIcon, LogOut, ChevronUp, Play, ArrowRight } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -20,6 +19,8 @@ import { excelreporteCopy } from "@/utils/excelReportes";
 import { excelreporte } from "@/utils/excelReportesAhorro";
 
 import { buildHomeNavigation } from "@/config/navigation";
+import { ProfileCard } from "@/components/profile/ProfileCard";
+import { ProfileDialog } from "@/components/profile/ProfileDialog";
 
 const homeMenuItems = buildHomeNavigation();
 
@@ -31,6 +32,7 @@ export default function ContabilidadAhorro() {
   const [fechaInicial, setFechaInicial] = useState<Date | undefined>(undefined);
   const [fechaFinal, setFechaFinal] = useState<Date | undefined>(undefined);
   const [showHomeMenu, setShowHomeMenu] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [contabilidadExpanded, setContabilidadExpanded] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -225,25 +227,7 @@ export default function ContabilidadAhorro() {
 
         {/* User Profile - Outside blue area */}
         <div className="mt-auto p-4">
-          <div className="flex items-center gap-3">
-            <Avatar className="w-10 h-10">
-              <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face" />
-              <AvatarFallback>
-                {user?.displayName 
-                  ? user.displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-                  : user?.email 
-                  ? user.email.slice(0, 2).toUpperCase()
-                  : "U"
-                }
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm truncate text-foreground">
-                {user?.userData?.display_name || user?.displayName || user?.email || "Usuario"}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">Usuario administrador</p>
-            </div>
-          </div>
+          <ProfileCard user={user} onSettingsClick={() => setProfileOpen(true)} />
           <button 
             onClick={handleLogout}
             className="mt-4 flex items-center gap-2 text-primary hover:text-primary/80 transition-colors w-full bg-red-50 rounded-xl py-3 justify-center"
@@ -252,6 +236,8 @@ export default function ContabilidadAhorro() {
             <span className="text-sm font-medium">Cerrar sesión</span>
           </button>
         </div>
+
+        <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} user={user} />
       </aside>
 
       {/* Main Content */}
