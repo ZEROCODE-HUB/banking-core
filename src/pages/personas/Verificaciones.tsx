@@ -165,7 +165,7 @@ export default function Verificaciones() {
       setUsuariosVerificados(usuarios); // Mostrar todos los usuarios
       setPaginaActual(1);
     } catch (error) {
-      console.error('Error cargando usuarios verificados:', error);
+      console.error("Error cargando usuarios verificados");
       toast({
         title: "Error",
         description: "No se pudieron cargar los usuarios",
@@ -210,7 +210,7 @@ export default function Verificaciones() {
         });
       }
     } catch (error) {
-      console.error('Error buscando usuario:', error);
+      console.error("Error buscando usuario");
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "No se pudo completar la búsqueda",

@@ -80,9 +80,7 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const requestData = JSON.parse(body);
-        console.log('📥 Petición recibida en:', req.url);
-        console.log('📋 Datos recibidos:', JSON.stringify(requestData, null, 2));
-        
+
         if (req.url === '/send-otp') {
           handleSendOTP(requestData, res);
         } else if (req.url === '/send-confirmation') {
@@ -93,7 +91,7 @@ const server = http.createServer((req, res) => {
         }
         
       } catch (error) {
-        console.error('❌ Error parsing JSON:', error);
+        console.error('❌ Error parsing JSON');
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'JSON inválido: ' + error.message }));
       }
@@ -108,7 +106,6 @@ const server = http.createServer((req, res) => {
 function handleSendOTP(data, res) {
   // Usar el OTP que viene del frontend, no generar uno nuevo
   const otp = data.otp || generateOTP();
-  console.log(`📧 Usando OTP para: ${data.email} - Código: ${otp}`);
   
   // Preparar datos para el template
   const templateData = {
@@ -138,7 +135,6 @@ function handleSendOTP(data, res) {
     ...emailTemplate
   };
   
-  console.log(`📤 Enviando email OTP a: ${data.email}`);
   sendEmailToSendGrid(emailData, res);
 }
 
@@ -186,26 +182,19 @@ function sendEmailToSendGrid(emailData, res) {
     }
   };
 
-  console.log('🔑 API Key cargada desde variable de entorno');
-  
   // Hacer la petición a SendGrid
   const sgReq = https.request(options, (sgRes) => {
     let responseData = '';
-    
-    console.log(`📡 Respuesta SendGrid - Status: ${sgRes.statusCode}`);
-    
+
     sgRes.on('data', (chunk) => {
       responseData += chunk;
     });
     
     sgRes.on('end', () => {
-      console.log('📨 Respuesta completa de SendGrid:', responseData);
       const success = sgRes.statusCode >= 200 && sgRes.statusCode < 300;
       
       if (!success) {
-        console.error('❌ Error en SendGrid:', responseData);
-      } else {
-        console.log('✅ Email enviado exitosamente');
+        console.error('❌ Error en SendGrid');
       }
       
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -219,7 +208,7 @@ function sendEmailToSendGrid(emailData, res) {
   });
 
   sgReq.on('error', (error) => {
-    console.error('💥 Error de conexión con SendGrid:', error);
+    console.error('💥 Error de conexión con SendGrid');
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ 
       success: false, 
@@ -232,8 +221,5 @@ function sendEmailToSendGrid(emailData, res) {
 }
 
 server.listen(PORT, () => {
-  console.log(`🚀 Servidor proxy SendGrid corriendo en http://localhost:${PORT}`);
-  console.log(`📧 Endpoints disponibles:`);
-  console.log(`   POST /send-otp - Enviar código OTP`);
-  console.log(`   POST /send-confirmation - Enviar confirmación de transacción`);
+  process.stdout.write(`Servidor proxy SendGrid escuchando en el puerto ${PORT}\n`);
 });

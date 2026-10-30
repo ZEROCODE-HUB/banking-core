@@ -85,7 +85,7 @@ export function VehiculosSection() {
           setVehiculos([]);
         }
       } catch (e) {
-        console.error("Error cargando vehiculos", e);
+        console.error("Error cargando vehiculos");
         setVehiculos([]);
       } finally {
         setLoading(false);

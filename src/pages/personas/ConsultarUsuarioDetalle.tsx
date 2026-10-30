@@ -293,7 +293,7 @@ export default function ConsultarUsuarioDetalle() {
         const total = await calcularDepositosPorFecha(ahorroSeleccionado.id, fechaInicio, fechaFin);
         setTotalAhorradoCalculado(total);
       } catch (error) {
-        console.error('Error al calcular total:', error);
+        console.error("Error al calcular total");
         setTotalAhorradoCalculado(0);
       } finally {
         setCalculandoTotal(false);
@@ -315,7 +315,7 @@ export default function ConsultarUsuarioDetalle() {
         const total = await calcularTotalRetirado(userData.uid, selectedYear);
         setTotalRetirado(total);
       } catch (error) {
-        console.error('Error al calcular total retirado:', error);
+        console.error("Error al calcular total retirado");
         setTotalRetirado(0);
       }
     };
@@ -337,7 +337,7 @@ export default function ConsultarUsuarioDetalle() {
         setTransacciones(trans);
         setPaginaActual(1); // Reset a página 1
       } catch (error) {
-        console.error('Error al cargar transacciones:', error);
+        console.error("Error al cargar transacciones");
         setTransacciones([]);
       } finally {
         setCargandoTransacciones(false);
@@ -390,7 +390,7 @@ export default function ConsultarUsuarioDetalle() {
       
       return date.toLocaleDateString('es-CO');
     } catch (error) {
-      console.error('Error al formatear fecha:', error, dateValue);
+      console.error("Error al formatear fecha");
       return 'N/A';
     }
   };
@@ -508,17 +508,14 @@ export default function ConsultarUsuarioDetalle() {
   // 🆕 Función para calcular total retirado con filtro de año
   const calcularTotalRetirado = async (userUID, selectedYear) => {
     try {
-      console.log(`🚀 Calculando total retirado para usuario ${userUID} en año ${selectedYear}...`);
       const startTime = Date.now();
 
       // 1. Obtener todas las cuentas de ahorro del usuario (SIN FILTROS)
       const ahorros = await obtenerAhorrosPorUsuario(userUID);
       if (!ahorros || ahorros.length === 0) {
-        console.log('❌ Usuario sin cuentas de ahorro');
         return 0;
       }
 
-      console.log(`📊 Cuentas de ahorro encontradas: ${ahorros.length}`);
       
       // 2. Obtener IDs de todas las cuentas
       const ahorrosIds = ahorros.map(ahorro => ahorro.id);
@@ -537,7 +534,6 @@ export default function ConsultarUsuarioDetalle() {
         fechaFin = new Date('2030-12-31T23:59:59.999Z');
       }
 
-      console.log(`📅 Filtrando retiros: ${fechaInicio.toLocaleDateString()} - ${fechaFin.toLocaleDateString()}`);
 
       let totalRetirado = 0;
       
@@ -564,18 +560,16 @@ export default function ConsultarUsuarioDetalle() {
             0
           );
 
-          console.log(`✅ Chunk ${i}-${Math.min(i + chunkSize, ahorrosIds.length)}: ${retiros?.length ?? 0} retiros`);
         } catch (error) {
-          console.warn(`Error en chunk ${i}-${i + chunkSize}:`, error);
+          console.warn("Error en chunk");
         }
       }
 
       const duration = Date.now() - startTime;
-      console.log(`✅ Total retirado calculado: $${totalRetirado.toFixed(2)} en ${duration}ms`);
 
       return totalRetirado;
     } catch (error) {
-      console.error('❌ Error calculando total retirado:', error);
+      console.error("❌ Error calculando total retirado");
       return 0;
     }
   };
@@ -659,7 +653,7 @@ export default function ConsultarUsuarioDetalle() {
 
       return (data ?? []).reduce((total, row: any) => total + (Number(row.amount) || 0), 0);
     } catch (error) {
-      console.error('Error calculando depósitos:', error);
+      console.error("Error calculando depósitos");
       return 0;
     }
   };
@@ -698,11 +692,9 @@ export default function ConsultarUsuarioDetalle() {
   // 🔄 MODIFICADA: Función cargarDatosAhorro - Saldo total SIN filtro
   const cargarDatosAhorro = async (userUID) => {
     try {
-      console.log(`🔄 Cargando datos de ahorro para año ${selectedYear}...`);
       
       // Obtener rango de fechas según año seleccionado
       const { fechaInicio, fechaFin } = obtenerRangoFechas();
-      console.log(`📅 Rango: ${fechaInicio.toLocaleDateString()} - ${fechaFin.toLocaleDateString()}`);
       
       // Obtener TODAS las cuentas de ahorro del usuario (sin filtro de monto)
       const ahorros = await obtenerAhorrosPorUsuario(userUID);
@@ -730,11 +722,6 @@ export default function ConsultarUsuarioDetalle() {
           totalSaldo += Number(ahorro.monto_total || 0);
         }
         
-        console.log('📊 Totales calculados:', {
-          totalDepositado,
-          totalBenef,
-          totalSaldo
-        });
         
         setTotalAhorrado(totalDepositado);
         setTotalBeneficios(totalBenef);
@@ -747,7 +734,7 @@ export default function ConsultarUsuarioDetalle() {
         setSaldoTotal(0);
       }
     } catch (error) {
-      console.error("Error al cargar datos de ahorro:", error);
+      console.error("Error al cargar datos de ahorro");
       setAhorrosData([]);
       setTotalAhorrado(0);
       setTotalBeneficios(0);
@@ -777,7 +764,7 @@ export default function ConsultarUsuarioDetalle() {
         setTotalCdatGanancias(0);
       }
     } catch (error) {
-      console.error("Error al cargar datos de CDAT:", error);
+      console.error("Error al cargar datos de CDAT");
       setTotalCdatInversion(0);
       setTotalCdatGanancias(0);
     }
@@ -831,7 +818,7 @@ export default function ConsultarUsuarioDetalle() {
         setMovimientosCdat(movimientos);
       }
     } catch (error) {
-      console.error('Error al cargar CDATś:', error);
+      console.error("Error al cargar CDATś");
     } finally {
       setCargandoCdats(false);
     }

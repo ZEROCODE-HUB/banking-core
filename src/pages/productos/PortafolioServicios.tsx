@@ -60,21 +60,14 @@ export default function PortafolioServicios() {
   const cargarProductos = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Cargando productos desde Supabase...');
       
       const { data, error } = await supabase.from('services').select('*');
       if (error) throw error;
       
       const services = data ?? [];
       
-      console.log('📊 Cantidad de servicios:', services.length);
       
       if (services.length === 0) {
-        console.log('⚠️ No se encontraron documentos en la tabla services');
-        console.log('🔍 Verificar:');
-        console.log('   - Que la tabla se llame exactamente "services"');
-        console.log('   - Que existan documentos en Supabase');
-        console.log('   - Las políticas RLS de lectura');
         setAhorros([]);
         setCreditos([]);
         setCdats([]);
@@ -86,11 +79,6 @@ export default function PortafolioServicios() {
       const productosCdats: Producto[] = [];
       
       services.forEach((data: any) => {
-        console.log('📄 Documento service:', data.id, data);
-        console.log('🏷️ service_main_type:', data.service_main_type);
-        console.log('📝 types_of_product_name:', data.types_of_product_name);
-        console.log('📊 ea:', data.ea);
-        console.log('📈 mv:', data.mv);
         
         const producto: Producto = {
           id: data.id,
@@ -101,19 +89,13 @@ export default function PortafolioServicios() {
                    data.service_main_type === 'CDAT' ? 'cdat' : 'credito'
         };
         
-        console.log('✅ Producto procesado:', producto);
         
         if (data.service_main_type === 'Ahorros') {
           productosAhorros.push(producto);
-          console.log('💰 Agregado a Ahorros');
         } else if (data.service_main_type === 'CDAT') {
           productosCdats.push(producto);
-          console.log('🏦 Agregado a CDAT');
         } else if (data.service_main_type === 'Credito') {
           productosCreditos.push(producto);
-          console.log('💳 Agregado a Crédito');
-        } else {
-          console.log('⚠️ service_main_type no reconocido:', data.service_main_type);
         }
       });
       
@@ -121,13 +103,9 @@ export default function PortafolioServicios() {
       setCreditos(productosCreditos);
       setCdats(productosCdats);
       
-      console.log('✅ Productos cargados:');
-      console.log('📊 Ahorros:', productosAhorros.length);
-      console.log('💳 Créditos:', productosCreditos.length);
-      console.log('🏦 CDATs:', productosCdats.length);
       
     } catch (error) {
-      console.error('❌ Error cargando productos:', error);
+      console.error("❌ Error cargando productos");
       toast({
         title: "Error al cargar productos",
         description: "No se pudieron cargar los datos desde Supabase",
@@ -212,7 +190,6 @@ export default function PortafolioServicios() {
 
       if (editingProduct) {
         // Actualizar producto existente
-        console.log('🔄 Actualizando producto:', editingProduct.producto.id);
         
         if (editingProduct.producto.id) {
           const { error } = await supabase
@@ -236,7 +213,6 @@ export default function PortafolioServicios() {
         });
       } else {
         // Crear nuevo producto
-        console.log('🆕 Creando nuevo producto:', nuevoProducto);
         
         const { error } = await supabase.from('services').insert({
           types_of_product_name: nuevoProducto.tipo,
@@ -260,7 +236,7 @@ export default function PortafolioServicios() {
       await cargarProductos();
       
     } catch (error) {
-      console.error('❌ Error guardando producto:', error);
+      console.error("❌ Error guardando producto");
       toast({
         title: "Error al guardar",
         description: "No se pudo guardar el producto",
@@ -277,10 +253,9 @@ export default function PortafolioServicios() {
   const handleLogout = async () => {
     try {
       await logout();
-      console.clear(); // Limpiar consola al cerrar sesión
       navigate("/auth", { replace: true });
     } catch (error) {
-      console.error("Error al cerrar sesión:", error);
+      console.error("Error al cerrar sesión");
     }
   };
 

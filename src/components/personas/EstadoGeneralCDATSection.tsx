@@ -241,13 +241,13 @@ export function EstadoGeneralCDATSection() {
       setCdatsData((cdats as any[]).map(mapCdat));
 
       if (retirosResult.error) {
-        console.warn('No se pudieron cargar los retiros para la gráfica:', retirosResult.error);
+        console.warn("No se pudieron cargar los retiros para la gráfica");
         setRetirosData([]);
       } else {
         setRetirosData(retirosResult.data ?? []);
       }
     } catch (error) {
-      console.error('Error cargando CDATs:', error);
+      console.error("Error cargando CDATs");
       toast({
         title: "Error",
         description: "Error al cargar los CDATs",

@@ -78,7 +78,6 @@ export default function ContabilidadAhorro() {
       // Función de callback para reportar progreso
       const onProgress = (progressPercent: number, message: string) => {
         setProgressAhorro(progressPercent);
-        console.log(`Progreso Ahorro: ${progressPercent}% - ${message}`);
       };
       
       // Usar la función de reportes de ahorro con los parámetros del formulario
@@ -99,7 +98,7 @@ export default function ContabilidadAhorro() {
       });
       
     } catch (error) {
-      console.error("Error generando reporte Ahorro:", error);
+      console.error("Error generando reporte Ahorro");
       toast({
         title: "Error al generar reporte",
         description: error.message || "Ocurrió un error al generar el archivo Excel",
@@ -122,7 +121,6 @@ export default function ContabilidadAhorro() {
       // Función de callback para reportar progreso
       const onProgress = (progressPercent: number, message: string) => {
         setProgress(progressPercent);
-        console.log(`Progreso: ${progressPercent}% - ${message}`);
       };
       
       // Usar la función mejorada de Excel que filtra correctamente por documentos firmados
@@ -137,7 +135,7 @@ export default function ContabilidadAhorro() {
       });
       
     } catch (error) {
-      console.error("Error generando reporte Excel:", error);
+      console.error("Error generando reporte Excel");
       toast({
         title: "Error al generar reporte",
         description: error.message || "Ocurrió un error al generar el archivo Excel",
@@ -153,10 +151,9 @@ export default function ContabilidadAhorro() {
   const handleLogout = async () => {
     try {
       await logout();
-      console.clear(); // Limpiar consola al cerrar sesión
       navigate("/auth", { replace: true });
     } catch (error) {
-      console.error("Error al cerrar sesión:", error);
+      console.error("Error al cerrar sesión");
     }
   };
 

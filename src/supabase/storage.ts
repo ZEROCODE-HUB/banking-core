@@ -38,13 +38,11 @@ export const convertirArchivoABase64 = (file: File): Promise<string> => {
 };
 
 export const subirArchivoConFallback = async (file: File, rutaCarpeta: string, nombrePersonalizado: string | null = null) => {
-  console.log(`Subiendo archivo: ${file.name} (${Math.round(file.size / 1024)} KB)`);
   try {
     const resultado = await subirArchivo(file, rutaCarpeta, nombrePersonalizado);
-    console.log('Archivo subido a Supabase Storage:', resultado.fileName);
     return { ...resultado, isBase64: false, isLocalFallback: false };
   } catch (error: any) {
-    console.warn('Supabase Storage falló, usando fallback base64...', error.message);
+    console.warn("Supabase Storage falló, usando fallback base64");
     try {
       const timestamp = Date.now() + Math.floor(Math.random() * 1000);
       const fileName = nombrePersonalizado || `${timestamp}_${file.name}`;
@@ -90,7 +88,7 @@ export const subirPDF = async (pdfBlob: Blob, nombreArchivo: string, carpetaUsua
     const { data: urlData } = supabase.storage.from(BUCKET_ARCHIVOS).getPublicUrl(data.path);
     return { url: urlData.publicUrl, fileName: nombreArchivo, fullPath: data.path, isBase64: false, isLocalFallback: false };
   } catch (error: any) {
-    console.warn('Error subiendo PDF a Supabase Storage:', error.message);
+    console.warn("Error subiendo PDF a Supabase Storage");
     try {
       const base64Data: string = await new Promise((resolve, reject) => {
         const reader = new FileReader();

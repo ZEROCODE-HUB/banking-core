@@ -32,8 +32,6 @@ const parseFecha = (value) => {
  */
 export async function excelreporte(cc = null, nombre = null, fechainicial = null, fechafinal = null, onProgress = null) {
   try {
-    console.log('=== INICIO GENERACION EXCEL ===');
-    console.log('CC:', cc, '| Fecha inicial:', fechainicial, '| Fecha final:', fechafinal);
 
     if (onProgress) onProgress(5, 'Iniciando generación...');
 
@@ -77,7 +75,6 @@ export async function excelreporte(cc = null, nombre = null, fechainicial = null
       throw new Error('No se encontraron usuarios para procesar');
     }
 
-    console.log('Total usuarios a procesar:', usuariosAProcesar.length);
     if (onProgress) onProgress(25, `${usuariosAProcesar.length} usuarios encontrados`);
 
     if (onProgress) onProgress(30, 'Obteniendo datos de ahorros...');
@@ -97,7 +94,6 @@ export async function excelreporte(cc = null, nombre = null, fechainicial = null
 
     for (let i = 0; i < usuariosAProcesar.length; i++) {
       const usuario = usuariosAProcesar[i];
-      console.log(`PROCESANDO USUARIO ${i + 1}/${usuariosAProcesar.length}: ${usuario.nit}`);
 
       const progressPercent = 50 + Math.floor((i / usuariosAProcesar.length) * 35); // 50% a 85%
       if (onProgress) onProgress(progressPercent, `Procesando ${i + 1}/${usuariosAProcesar.length}: ${usuario.nombre}`);
@@ -121,7 +117,7 @@ export async function excelreporte(cc = null, nombre = null, fechainicial = null
       } catch (e) {
         const errorMsg = `Usuario ${usuario.nit} (${usuario.nombre}): ${e.message}`;
         erroresUsuarios.push(errorMsg);
-        console.error('ERROR procesando usuario', usuario.nit, ':', e);
+        console.error("ERROR procesando usuario");
         agregarFilaError(worksheet, usuario, currentRow, e.message);
         currentRow++;
         primerUsuario = false;
@@ -137,15 +133,8 @@ export async function excelreporte(cc = null, nombre = null, fechainicial = null
     );
 
     if (onProgress) onProgress(95, 'Archivo generado exitosamente');
-
-    imprimirResumenFinal(
-      usuariosAProcesar.length,
-      erroresUsuarios,
-      erroresCuentas,
-      advertencias
-    );
   } catch (e) {
-    console.error('ERROR CRITICO en excelreporte:', e);
+    console.error("ERROR CRITICO en excelreporte");
     throw e;
   }
 }
@@ -175,10 +164,9 @@ async function obtenerTodosLosAhorrosOptimizado() {
       }
     }
 
-    console.log('Ahorros organizados por usuario:', ahorrosMap.size, 'usuarios con ahorros válidos');
     return ahorrosMap;
   } catch (e) {
-    console.error('ERROR en obtenerTodosLosAhorrosOptimizado:', e);
+    console.error("ERROR en obtenerTodosLosAhorrosOptimizado");
     return new Map();
   }
 }
@@ -218,10 +206,9 @@ async function obtenerTodasLasTransaccionesOptimizado() {
       offset += 1000;
     }
 
-    console.log('Transacciones organizadas por cuenta:', transaccionesMap.size, 'cuentas con transacciones');
     return transaccionesMap;
   } catch (e) {
-    console.error('ERROR en obtenerTodasLasTransaccionesOptimizado:', e);
+    console.error("ERROR en obtenerTodasLasTransaccionesOptimizado");
     return new Map();
   }
 }
@@ -367,7 +354,7 @@ function procesarCuentaAhorrosOptimizada(
       }
     }
   } catch (e) {
-    console.error('Error procesando beneficios del array en ahorros:', e);
+    console.error("Error procesando beneficios del array en ahorros");
   }
 
   const montoTotalReal = totalDepositos - totalRetiros + totalBeneficios;
@@ -396,7 +383,7 @@ function procesarCuentaAhorrosOptimizada(
       return dateA - dateB;
     });
   } catch (e) {
-    console.error('Error ordenando beneficios:', e);
+    console.error("Error ordenando beneficios");
     transactionsBeneficios = [];
   }
 
@@ -525,7 +512,7 @@ function procesarCuentaAhorrosOptimizada(
       agregarFilaExcelConEstilo(worksheet, rowData, currentRow, transactionType);
       currentRow++;
     } catch (e) {
-      console.error('ERROR procesando transaccion:', e);
+      console.error("ERROR procesando transaccion");
       continue;
     }
   }
@@ -560,10 +547,9 @@ async function obtenerTodosLosUsuarios() {
       });
     }
 
-    console.log('Usuarios validos procesados:', usuarios.length);
     return usuarios;
   } catch (e) {
-    console.error('ERROR en obtenerTodosLosUsuarios:', e);
+    console.error("ERROR en obtenerTodosLosUsuarios");
     throw e;
   }
 }
@@ -594,7 +580,6 @@ async function obtenerUsuarioPorCC(cc) {
     }
 
     if (!userData) {
-      console.log('No se encontro usuario con CC:', cc);
       return null;
     }
 
@@ -611,7 +596,7 @@ async function obtenerUsuarioPorCC(cc) {
       data: userData
     };
   } catch (e) {
-    console.error('ERROR en obtenerUsuarioPorCC:', e);
+    console.error("ERROR en obtenerUsuarioPorCC");
     throw e;
   }
 }
@@ -700,7 +685,7 @@ function agregarSeparadorUsuario(worksheet, currentRow) {
     }
     return currentRow + 1;
   } catch (e) {
-    console.error('ERROR agregando separador:', e);
+    console.error("ERROR agregando separador");
     return currentRow + 1;
   }
 }
@@ -722,7 +707,7 @@ function agregarFilaError(worksheet, usuario, rowIndex, error) {
       cell.font = { color: { argb: 'FFCC0000' } };
     }
   } catch (e) {
-    console.error('ERROR agregando fila de error:', e);
+    console.error("ERROR agregando fila de error");
   }
 }
 
@@ -733,7 +718,7 @@ function agregarFilaErrorCuenta(worksheet, usuario, cuentaId, rowIndex, error) {
     row.getCell(3).value = usuario.nombre;
     row.getCell(4).value = `ERROR CUENTA ${cuentaId}: ${error.length > 30 ? error.substring(0, 30) + '...' : error}`;
   } catch (e) {
-    console.error('ERROR agregando fila de error de cuenta:', e);
+    console.error("ERROR agregando fila de error de cuenta");
   }
 }
 
@@ -743,7 +728,7 @@ function parseDateFromBeneficio(beneficio) {
     if (!dateValue) return null;
     return parseFecha(dateValue);
   } catch (e) {
-    console.error('Error parseando fecha del beneficio:', e);
+    console.error("Error parseando fecha del beneficio");
     return null;
   }
 }
@@ -775,7 +760,7 @@ function agregarFilaExcelConEstilo(worksheet, rowData, rowIndex, transactionType
       }
     });
   } catch (e) {
-    console.error('ERROR agregando fila con estilo:', e);
+    console.error("ERROR agregando fila con estilo");
   }
 }
 
@@ -790,17 +775,6 @@ function parseToDouble(value) {
   } catch (e) {
     return 0.0;
   }
-}
-
-function imprimirResumenFinal(totalUsuarios, erroresUsuarios, erroresCuentas, advertencias) {
-  console.log('RESUMEN FINAL: usuarios', totalUsuarios,
-    '| errores usuario', erroresUsuarios.length,
-    '| errores cuenta', erroresCuentas.length,
-    '| advertencias', advertencias.length);
-
-  erroresUsuarios.forEach((error, index) => console.log(`USUARIO ${index + 1}: ${error}`));
-  erroresCuentas.forEach((error, index) => console.log(`CUENTA ${index + 1}: ${error}`));
-  advertencias.forEach((advertencia, index) => console.log(`ADVERTENCIA ${index + 1}: ${advertencia}`));
 }
 
 async function generarArchivoExcel(workbook, identificador) {

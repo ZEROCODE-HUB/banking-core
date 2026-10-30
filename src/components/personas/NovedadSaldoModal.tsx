@@ -114,7 +114,7 @@ export function NovedadSaldoModal({
       const result = await enviarCodigoOTP(datosTransaccion);
       return result.success === true;
     } catch (error) {
-      console.error('Error enviando el código OTP:', error);
+      console.error("Error enviando el código OTP");
       return false;
     }
   };
@@ -187,7 +187,7 @@ export function NovedadSaldoModal({
       setCountdown(59);
 
     } catch (error) {
-      console.error('Error enviando OTP:', error);
+      console.error("Error enviando OTP");
       toast({
         title: "Error al enviar código",
         description: "No se pudo enviar el código OTP. Intente nuevamente.",
@@ -275,7 +275,7 @@ export function NovedadSaldoModal({
       }, 2000);
 
     } catch (error) {
-      console.error('Error al finalizar novedad:', error);
+      console.error("Error al finalizar novedad");
       toast({
         title: "Error",
         description: (error as any)?.message || "Error al procesar la novedad de saldo. Intente nuevamente.",
@@ -315,7 +315,7 @@ export function NovedadSaldoModal({
       setCountdown(59);
       setOtpCode(["", "", "", "", "", ""]);
     } catch (error) {
-      console.error('Error reenviando OTP:', error);
+      console.error("Error reenviando OTP");
       toast({
         title: "Error al reenviar código",
         description: "No se pudo reenviar el código OTP. Intente nuevamente.",

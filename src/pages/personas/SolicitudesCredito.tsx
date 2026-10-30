@@ -62,7 +62,7 @@ export default function SolicitudesCredito() {
       // Usar mock data por ahora
       setRetiroAhorrosData(mockRetiroAhorrosData);
     } catch (error) {
-      console.error('Error al cargar retiro de ahorros:', error);
+      console.error("Error al cargar retiro de ahorros");
     } finally {
       setLoading(false);
     }

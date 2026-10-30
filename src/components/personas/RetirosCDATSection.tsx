@@ -61,7 +61,7 @@ const formatDate = (timestamp: any) => {
     }
     return 'Fecha inválida';
   } catch (error) {
-    console.error('Error formateando fecha:', error);
+    console.error("Error formateando fecha");
     return 'Error fecha';
   }
 };
@@ -106,7 +106,7 @@ const calculateTimeElapsed = (createdDate: any) => {
       return `${diffHours.toString().padStart(2, '0')}:${diffMinutes.toString().padStart(2, '0')}:${diffSeconds.toString().padStart(2, '0')}`;
     }
   } catch (error) {
-    console.error('Error calculando tiempo:', error);
+    console.error("Error calculando tiempo");
     return '-';
   }
 };
@@ -191,7 +191,7 @@ export function RetirosCDATSection() {
           .eq('id_cdat', idCdat);
 
         if (error) {
-          console.warn(`Error cargando retiros del CDAT ${cdat.id}:`, error);
+          console.warn("Error cargando retiros del CDAT");
           return [];
         }
 
@@ -216,7 +216,7 @@ export function RetirosCDATSection() {
       setRetirosData(todosLosRetiros);
       
     } catch (error) {
-      console.error('❌ Error cargando retiros:', error);
+      console.error("❌ Error cargando retiros");
       toast({
         title: "Error",
         description: "No se pudieron cargar los retiros",

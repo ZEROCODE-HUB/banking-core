@@ -281,7 +281,7 @@ export const calcularTotalDepositosAhorro = calcularTotalAhorrado;
 export const obtenerCdatsPorUsuario = async (userUID: string) => {
   const { data, error } = await supabase.from('cdats').select('*').eq('idusuario', userUID);
   if (error) {
-    console.error('Error al obtener CDATs:', error);
+    console.error("Error al obtener CDATs");
     return [];
   }
   return normalizeRows(data ?? []);

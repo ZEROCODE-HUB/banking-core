@@ -101,7 +101,6 @@ export function UserDetailModal({ open, onOpenChange, user }: UserDetailModalPro
 
     try {
       setCargandoMovimientos(true);
-      console.log('🔄 Cargando movimientos para ahorros_id:', user.id);
 
       const { data, error } = await supabase
         .from('transactions')
@@ -113,12 +112,10 @@ export function UserDetailModal({ open, onOpenChange, user }: UserDetailModalPro
       const transactions = data ?? [];
 
       if (transactions.length === 0) {
-        console.log('⚠️ No hay transacciones para este ahorros_id');
         setMovimientosReales([]);
         return;
       }
 
-      console.log('✅ Transacciones encontradas:', transactions.length);
 
       // Convertir transactions a formato Movement
       const movimientos: Movement[] = transactions.map((transaction: any) => {
@@ -181,9 +178,8 @@ export function UserDetailModal({ open, onOpenChange, user }: UserDetailModalPro
       });
 
       setMovimientosReales(movimientosOrdenados);
-      console.log('📊 Movimientos totales procesados:', movimientosOrdenados.length);
     } catch (error) {
-      console.error('❌ Error cargando movimientos:', error);
+      console.error("❌ Error cargando movimientos");
       setMovimientosReales([]);
     } finally {
       setCargandoMovimientos(false);

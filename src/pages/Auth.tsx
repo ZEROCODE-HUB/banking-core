@@ -70,7 +70,7 @@ export default function Auth() {
       });
       
     } catch (error: any) {
-      console.error("Error en login:", error);
+      console.error("Error en login");
       toast({
         title: "Error de autenticación",
         description: error.message || "Credenciales inválidas",

@@ -158,7 +158,7 @@ export function CambiarEstadoModal({ open, onOpenChange, solicitud, onEstadoChan
       handleClose();
       
     } catch (error) {
-      console.error('Error al actualizar estado:', error);
+      console.error("Error al actualizar estado");
       toast({
         title: "Error",
         description: (error as any)?.message || "No se pudo actualizar el estado de la transacción",

@@ -204,7 +204,7 @@ export default function FondosIndependientes() {
       });
 
     } catch (error) {
-      console.error('❌ Error cargando datos reales:', error);
+      console.error("❌ Error cargando datos reales");
     } finally {
       setLoading(false);
     }
@@ -272,7 +272,7 @@ export default function FondosIndependientes() {
         .lte('firebase_date', fin);
 
       if (error) {
-        console.warn('Error calculando ahorrado por chunk:', error);
+        console.warn("Error calculando ahorrado por chunk");
         continue;
       }
 
@@ -318,7 +318,7 @@ export default function FondosIndependientes() {
         .lte('firebase_date', fin);
 
       if (error) {
-        console.warn('Error consultando depósitos 2026 por chunk:', error);
+        console.warn("Error consultando depósitos 2026 por chunk");
         continue;
       }
 
@@ -407,7 +407,7 @@ export default function FondosIndependientes() {
         .lte('firebase_date', fin);
 
       if (error) {
-        console.warn('Error calculando retirado por chunk:', error);
+        console.warn("Error calculando retirado por chunk");
         continue;
       }
 
@@ -473,7 +473,7 @@ export default function FondosIndependientes() {
           .select('id, nit, nro_documento, phone_number')
           .in('id', chunk);
         if (error) {
-          console.warn('Error consultando usuarios:', error);
+          console.warn("Error consultando usuarios");
           continue;
         }
         (data ?? []).forEach(user => usersById.set(user.id, user));
@@ -533,7 +533,7 @@ export default function FondosIndependientes() {
       }
 
     } catch (error) {
-      console.error('❌ Error cargando datos de tabla:', error);
+      console.error("❌ Error cargando datos de tabla");
       setTablaData([]);
       setTablaDataCompleta([]);
     } finally {

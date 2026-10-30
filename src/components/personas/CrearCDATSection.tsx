@@ -132,7 +132,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
         try {
           empresaInfo = await obtenerEmpresaPorRef(usuario.empresaRef);
         } catch (error) {
-          console.error("Error al obtener empresa:", error);
+          console.error("Error al obtener empresa");
         }
       }
 
@@ -157,7 +157,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
       });
 
     } catch (error) {
-      console.error("Error al buscar usuario:", error);
+      console.error("Error al buscar usuario");
       toast({
         title: "Error",
         description: "Error al buscar el usuario. Intenta nuevamente.",
@@ -406,7 +406,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
           resolve(canvas.toDataURL('image/png'));
         };
         img.onerror = () => {
-          console.warn(`No se pudo cargar: ${url}`);
+          console.warn("No se pudo cargar");
           resolve('');
         };
         img.src = url;
@@ -451,7 +451,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
         try {
           doc.addImage(logoImg, 'PNG', MARGIN_LEFT, yPos, 42, 23);
         } catch (e) {
-          console.warn('Error agregando logo');
+          console.warn("Error agregando logo");
         }
       }
       
@@ -473,7 +473,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
         try {
           doc.addImage(logoBWImg, 'PNG', PAGE_WIDTH - MARGIN_RIGHT - 20, 0, 10, 18);
         } catch (e) {
-          console.warn('Error agregando logo BW');
+          console.warn("Error agregando logo BW");
         }
       }
       
@@ -814,7 +814,6 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
     
     // Usar los datos del paso 2 - origen de recursos
     const origenRecursosTexto = datosCDAT.declaracion?.origenRecursos || 'Salario y ahorros personales';
-    console.log('DEBUG - Origen recursos:', origenRecursosTexto);
     crearCampo(MARGIN_LEFT, yPos, CONTENT_WIDTH, 'Origen de los recursos', origenRecursosTexto, 7);
     yPos += 18;
     
@@ -840,7 +839,6 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
     doc.setFont('helvetica', 'normal');
     // Usar las observaciones del paso 2
     const observacionesTexto = datosCDAT.declaracion?.observaciones || 'Cliente verificado. Documentación completa y validada. Sin observaciones adicionales.';
-    console.log('DEBUG - Observaciones:', observacionesTexto);
     const lineasObs = doc.splitTextToSize(observacionesTexto, CONTENT_WIDTH);
     lineasObs.forEach((linea: string) => {
       doc.text(linea, MARGIN_LEFT, yPos);
@@ -863,20 +861,14 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
         throw new Error('Debes iniciar sesión para crear un CDAT.');
       }
       
-      console.log('🔐 Usuario autenticado:', {
-        uid: currentUser.id,
-        email: currentUser.email
-      });
       
       // Recopilar todos los datos del CDAT
       const datosCDAT = recopilarDatosCDAT();
-      console.log('📊 Datos del CDAT recopilados:', datosCDAT);
       
       if (!datosCDAT) {
         throw new Error('No se pudieron recopilar los datos del CDAT');
       }
 
-      console.log('📄 Generando PDF...');
       const pdfDoc = await generarDocumentoCDAT();
       if (!pdfDoc) {
         throw new Error('No se pudo generar el PDF');
@@ -884,7 +876,6 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
       
       // Convertir PDF a blob
       const pdfBlob = pdfDoc.output('blob');
-      console.log('📄 PDF generado:', Math.round(pdfBlob.size / 1024), 'KB');
       
       // Subir PDF con nombre simple como FlutterFlow
       const timestamp = Date.now();
@@ -894,29 +885,24 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
       let pdfUrl = '';
       let pdfInfo = null;
       
-      console.log('🔄 Intentando subir PDF:', fileName);
       try {
         pdfInfo = await subirPDF(pdfBlob, fileName, userId);
         pdfUrl = pdfInfo.url;
         
         if (pdfInfo.isLocalFallback) {
-          console.log('📋 PDF guardado como base64 (fallback activo)');
-          console.log('💾 Archivo disponible en localStorage:', pdfInfo.storageKey);
           toast({
             title: "PDF Guardado (Fallback)",
             description: "PDF guardado en modo fallback. El almacenamiento no está disponible.",
             variant: "default",
           });
         } else if (pdfInfo.hasError) {
-          console.warn('⚠️ PDF con error pero CDAT continuará:', pdfInfo.error);
+          console.warn("⚠️ PDF con error pero CDAT continuará");
           toast({
             title: "PDF con problemas",
             description: "Hubo problemas con el PDF pero el CDAT se creará.",
             variant: "default",
           });
         } else {
-          console.log('✅ PDF subido exitosamente!');
-          console.log('🔗 URL:', pdfInfo.url);
           toast({
             title: "PDF Subido",
             description: "PDF subido exitosamente al almacenamiento.",
@@ -924,7 +910,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
           });
         }
       } catch (storageError) {
-        console.error('❌ Error total con PDF:', storageError);
+        console.error("❌ Error total con PDF");
         
         // Generar nombre de fallback de emergencia
         pdfUrl = `EMERGENCY_PDF_${fileName}`;
@@ -962,7 +948,6 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
       
       // Subir archivos del paso 1 (si existen) - estos van a comprobantes
       if (uploadedFiles && uploadedFiles.length > 0) {
-        console.log(`📎 Procesando ${uploadedFiles.length} archivos del paso 1...`);
         for (const file of uploadedFiles) {
           if (file.file) {
             // Declarar fileTimestamp fuera del try para que esté disponible en catch
@@ -973,19 +958,14 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
               const resultado = await subirArchivoConFallback(file.file, userId, `${fileTimestamp}000.${ext}`);
               comprobantesArray.push(resultado.url);
               
-              if (resultado.isLocalFallback) {
-                console.log('📋 Archivo paso 1 guardado como fallback:', resultado.fileName);
-              } else if (resultado.hasError) {
-                console.warn('⚠️ Archivo paso 1 con error:', resultado.fileName);
-              } else {
-                console.log('📎 Archivo paso 1 subido a Storage:', resultado.fileName);
+              if (resultado.hasError) {
+                console.warn("⚠️ Archivo paso 1 con error");
               }
             } catch (error) {
-              console.warn('⚠️ Error procesando archivo paso 1:', error.message);
+              console.warn("⚠️ Error procesando archivo paso 1");
               // Crear referencia de emergencia para que el CDAT se pueda crear
               const emergencyRef = `ERROR_ARCHIVO_${fileTimestamp}_${file.file.name}`;
               comprobantesArray.push(emergencyRef);
-              console.log('🚨 Archivo paso 1 agregado como referencia de emergencia');
             }
           }
         }
@@ -993,7 +973,6 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
       
       // Subir archivos del paso 2 (origen de recursos) - estos van a Archivos  
       if (uploadedFilesStep2 && uploadedFilesStep2.length > 0) {
-        console.log(`📎 Procesando ${uploadedFilesStep2.length} archivos del paso 2 (origen de recursos)...`);
         for (const file of uploadedFilesStep2) {
           if (file.file) {
             // Declarar fileTimestamp fuera del try para que esté disponible en catch
@@ -1004,19 +983,14 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
               const resultado = await subirArchivoConFallback(file.file, userId, `${fileTimestamp}000.${ext}`);
               archivosArray.push(resultado.url); // Estos van a Archivos
               
-              if (resultado.isLocalFallback) {
-                console.log('📋 Archivo paso 2 guardado como fallback:', resultado.fileName);
-              } else if (resultado.hasError) {
-                console.warn('⚠️ Archivo paso 2 con error:', resultado.fileName);
-              } else {
-                console.log('📎 Archivo paso 2 subido a Storage:', resultado.fileName);
+              if (resultado.hasError) {
+                console.warn("⚠️ Archivo paso 2 con error");
               }
             } catch (error) {
-              console.warn('⚠️ Error procesando archivo paso 2:', error.message);
+              console.warn("⚠️ Error procesando archivo paso 2");
               // Crear referencia de emergencia
               const emergencyRef = `ERROR_ARCHIVO_${fileTimestamp}_${file.file.name}`;
               archivosArray.push(emergencyRef);
-              console.log('🚨 Archivo paso 2 agregado como referencia de emergencia');
             }
           }
         }
@@ -1054,7 +1028,6 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
         .select('id, id_cdat')
         .single();
       if (cdatError) throw cdatError;
-      console.log('✅ CDAT creado con ID:', cdatCreado.id);
       
       // Retiros anticipados: `retiros_cdat` no tiene FK hacia `cdats`, así que
       // no se pueden asociar a este contrato. La vista los calcula desde
@@ -1082,14 +1055,12 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
         .from('confirmacionretiros')
         .insert(depositoInicialData);
       if (depositoError) {
-        console.error('⚠️ CDAT creado pero sin depósito inicial:', depositoError);
+        console.error("⚠️ CDAT creado pero sin depósito inicial");
         toast({
           title: "CDAT creado con advertencia",
           description: "No se pudo registrar el depósito inicial en confirmacionretiros.",
           variant: "destructive",
         });
-      } else {
-        console.log('✅ Depósito inicial creado en confirmacionretiros');
       }
       
       // Mostrar modal de éxito
@@ -1102,7 +1073,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
       });
       
     } catch (error) {
-      console.error('❌ Error al crear CDAT:', error);
+      console.error("❌ Error al crear CDAT");
       
       toast({
         title: "No se pudo crear el CDAT",
@@ -1144,7 +1115,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
         setGeneratedPdfUrl(pdfUrl);
       }
     } catch (error) {
-      console.error('Error generating PDF preview:', error);
+      console.error("Error generating PDF preview");
       toast({
         title: "Error",
         description: "Error al generar la vista previa del PDF.",
@@ -1888,7 +1859,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
                   });
                 }
               } catch (error) {
-                console.error('Error al generar PDF:', error);
+                console.error("Error al generar PDF");
                 toast({
                   variant: "destructive",
                   title: "Error",

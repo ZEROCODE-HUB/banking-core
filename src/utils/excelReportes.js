@@ -42,8 +42,6 @@ const texto = (value) => (value === null || value === undefined ? '' : String(va
  */
 export async function excelreporteCopy(cc = null, nombre = null, fechainicial = null, fechafinal = null, onProgress = null) {
   try {
-    console.log('=== INICIO GENERACION REPORTE DE USUARIOS ===');
-    console.log('CC:', cc ?? 'TODOS');
 
     // Reportar progreso inicial
     if (onProgress) onProgress(5, 'Iniciando generación...');
@@ -76,7 +74,6 @@ export async function excelreporteCopy(cc = null, nombre = null, fechainicial = 
       throw new Error('No se encontraron usuarios tipo "Basic User" para procesar');
     }
 
-    console.log('Total usuarios a procesar:', usuariosAProcesar.length);
     if (onProgress) onProgress(25, `${usuariosAProcesar.length} usuarios encontrados`);
 
     // Obtener TODOS los ahorros de una vez
@@ -93,7 +90,6 @@ export async function excelreporteCopy(cc = null, nombre = null, fechainicial = 
 
     for (let i = 0; i < usuariosAProcesar.length; i++) {
       const usuario = usuariosAProcesar[i];
-      console.log(`--- Procesando usuario ${i + 1}/${usuariosAProcesar.length}: ${usuario.nit}`);
 
       const progressPercent = 40 + Math.floor((i / usuariosAProcesar.length) * 40); // 40% a 80%
       if (onProgress) onProgress(progressPercent, `Procesando ${i + 1}/${usuariosAProcesar.length}: ${usuario.nombre}`);
@@ -119,7 +115,7 @@ export async function excelreporteCopy(cc = null, nombre = null, fechainicial = 
 
         usuariosExitosos++;
       } catch (e) {
-        console.error(`ERROR procesando usuario ${usuario.nit}:`, e);
+        console.error("ERROR procesando usuario");
         usuariosConError++;
         errores.push(`Usuario ${usuario.nit} (${usuario.nombre}): ${e.message}`);
 
@@ -140,14 +136,8 @@ export async function excelreporteCopy(cc = null, nombre = null, fechainicial = 
     if (onProgress) onProgress(85, 'Generando archivo Excel...');
     await generarArchivoExcelUsuarios(workbook, cc ?? 'TODOS');
     if (onProgress) onProgress(95, 'Archivo generado exitosamente');
-
-    console.log('Resumen: total', usuariosAProcesar.length, '| incluidos', usuariosExitosos,
-      '| sin lineas', usuariosSinLineas, '| con error', usuariosConError);
-    if (errores.length > 0) {
-      errores.forEach((error, index) => console.log(`${index + 1}. ${error}`));
-    }
   } catch (e) {
-    console.error('ERROR CRITICO en excelreporteCopy:', e);
+    console.error("ERROR CRITICO en excelreporteCopy");
     throw e;
   }
 }
@@ -184,10 +174,9 @@ async function obtenerTodosLosUsuariosCompleto() {
       });
     }
 
-    console.log('Total usuarios validos tipo "Basic User":', usuarios.length);
     return usuarios;
   } catch (e) {
-    console.error('ERROR en obtenerTodosLosUsuariosCompleto:', e);
+    console.error("ERROR en obtenerTodosLosUsuariosCompleto");
     throw e;
   }
 }
@@ -222,12 +211,10 @@ async function obtenerUsuarioPorCCCompleto(cc) {
     }
 
     if (!userData) {
-      console.log('No se encontro usuario con CC:', cc);
       return null;
     }
 
     if (texto(userData.user_type) !== 'Basic User') {
-      console.log(`Usuario encontrado pero es tipo "${userData.user_type}", no "Basic User"`);
       return null;
     }
 
@@ -248,7 +235,7 @@ async function obtenerUsuarioPorCCCompleto(cc) {
       telefono: texto(userData.phone_number).trim(),
     };
   } catch (e) {
-    console.error('ERROR en obtenerUsuarioPorCCCompleto:', e);
+    console.error("ERROR en obtenerUsuarioPorCCCompleto");
     throw e;
   }
 }
@@ -276,10 +263,9 @@ async function obtenerTodosLosAhorros() {
       ahorrosMap.get(userId).push({ id: ahorroData.id, data: ahorroData });
     }
 
-    console.log('Ahorros organizados por usuario:', ahorrosMap.size, 'usuarios con ahorros');
     return ahorrosMap;
   } catch (e) {
-    console.error('ERROR en obtenerTodosLosAhorros:', e);
+    console.error("ERROR en obtenerTodosLosAhorros");
     return new Map();
   }
 }
@@ -320,7 +306,7 @@ function obtenerInformacionAhorrosOptimizada(userId, todosLosAhorros) {
       empresa: empresaNomina,
     };
   } catch (e) {
-    console.error('ERROR en obtenerInformacionAhorrosOptimizada:', e);
+    console.error("ERROR en obtenerInformacionAhorrosOptimizada");
     return { lineas: '', empresa: '' };
   }
 }

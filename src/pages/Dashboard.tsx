@@ -86,53 +86,34 @@ export default function Dashboard() {
   const userName = user?.userData?.display_name || user?.displayName || "Usuario";
 
   // 🔧 DEBUG temporal - eliminar después de verificar
-  console.log('🔍 DEBUG Dashboard - Datos del usuario:', {
-    displayName: user?.displayName,
-    userDataDisplayName: user?.userData?.display_name,
-    email: user?.email,
-    finalUserName: userName,
-    fullUserData: user?.userData
-  });
 
   // Función para cargar retiros CDAT pendientes
   const cargarRetirosCDATpendientes = async () => {
     try {
       setLoadingRetirosCDAT(true);
-      console.log('🔄 Cargando retiros CDAT pendientes...');
       
       // Usar la misma lógica que RetirosCDATSection
       const cdats = await obtenerColeccion('Cdats');
-      console.log('📊 CDATs encontrados:', cdats.length);
       
       // Cargar retiros de todos los CDATs EN PARALELO
       const promesasRetiros = cdats.map(async (cdat) => {
         try {
           const retiros = await obtenerSubcoleccion(`Cdats/${cdat.id}`, 'confirmacionretiros');
           
-          console.log(`🔍 CDAT ${cdat.idCdat || cdat.id} - Retiros encontrados:`, retiros.length);
-          
-          if (retiros.length > 0) {
-            console.log('📋 Primer retiro completo:', retiros[0]);
-            console.log('🏷️ Estados únicos:', [...new Set(retiros.map(r => r.estados))]);
-            console.log('🏷️ Tipos operación únicos:', [...new Set(retiros.map(r => r.tipodeoperacion))]);
-          }
-          
           // Filtrar solo los de tipo "retiro" y estado pendiente
           const retirosPendientes = retiros.filter(retiro => {
             const esRetiro = retiro.tipodeoperacion === "retiro";
             const esPendiente = retiro.estados === 'pendiente'; // Cambio aquí: estados (no Estado) y === 'pendiente' (no includes)
             
-            console.log(`🔍 Retiro: ${retiro.id} | Tipo: ${retiro.tipodeoperacion} | Estado: ${retiro.estados} | Es retiro: ${esRetiro} | Es pendiente: ${esPendiente} | Monto: ${retiro.monto}`);
             
             return esRetiro && esPendiente;
           });
           
-          console.log(`✅ CDAT ${cdat.idCdat} - Retiros pendientes filtrados:`, retirosPendientes.length);
           
           return retirosPendientes;
           
         } catch (error) {
-          console.warn(`Error cargando retiros del CDAT ${cdat.id}:`, error);
+          console.warn("Error cargando retiros del CDAT");
           return [];
         }
       });
@@ -144,12 +125,9 @@ export default function Dashboard() {
       // Calcular monto total
       const montoTotal = todosLosRetirosCDAT.reduce((total, retiro) => {
         const amount = retiro.monto || 0; // Cambio aquí: monto (no Monto)
-        console.log(`💰 Sumando monto: ${amount}`);
         return total + amount;
       }, 0);
       
-      console.log('✅ DASHBOARD - Total retiros CDAT pendientes encontrados:', todosLosRetirosCDAT.length);
-      console.log('💵 DASHBOARD - Monto total CDAT:', montoTotal);
       
       setRetirosCDATpendientes({
         count: todosLosRetirosCDAT.length,
@@ -157,7 +135,7 @@ export default function Dashboard() {
       });
       
     } catch (error) {
-      console.error('❌ Error cargando retiros CDAT pendientes:', error);
+      console.error("❌ Error cargando retiros CDAT pendientes");
       setRetirosCDATpendientes({ count: 0, amount: 0 });
     } finally {
       setLoadingRetirosCDAT(false);
@@ -166,11 +144,9 @@ export default function Dashboard() {
   const cargarRetirosPendientes = async () => {
     try {
       setLoadingRetiros(true);
-      console.log('🔄 Cargando retiros pendientes...');
       
       // Usar la misma función que funciona en Retiro de ahorros
       const transacciones = await obtenerTransaccionesPorEstadoRetiro('PENDING');
-      console.log('📊 Transacciones PENDING obtenidas:', transacciones.length);
       
       // Calcular monto total
       const montoTotal = transacciones.reduce((total, transaccion) => {
@@ -178,8 +154,6 @@ export default function Dashboard() {
         return total + amount;
       }, 0);
       
-      console.log('✅ Retiros pendientes encontrados:', transacciones.length);
-      console.log('💵 Monto total:', montoTotal);
       
       setRetirosPendientes({
         count: transacciones.length,
@@ -187,7 +161,7 @@ export default function Dashboard() {
       });
       
     } catch (error) {
-      console.error('❌ Error cargando retiros pendientes:', error);
+      console.error("❌ Error cargando retiros pendientes");
       setRetirosPendientes({ count: 0, amount: 0 });
     } finally {
       setLoadingRetiros(false);

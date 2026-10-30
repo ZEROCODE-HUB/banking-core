@@ -117,10 +117,9 @@ export function AppSidebar({ sections, className }: AppSidebarProps) {
   const handleLogout = async () => {
     try {
       await logout();
-      console.clear(); // Limpiar consola al cerrar sesión
       navigate("/auth", { replace: true });
     } catch (error) {
-      console.error("Error al cerrar sesión:", error);
+      console.error("Error al cerrar sesión");
     }
   };
 

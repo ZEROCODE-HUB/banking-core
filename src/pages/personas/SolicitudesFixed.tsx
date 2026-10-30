@@ -240,7 +240,7 @@ export default function Solicitudes() {
       setRetiroAhorrosData(mapped);
       setRetiroAhorrosEnriquecidos(mapped);
     } catch (error) {
-      console.error('Error al cargar transacciones de retiro de ahorros:', error);
+      console.error("Error al cargar transacciones de retiro de ahorros");
     } finally {
       setLoadingRetiroAhorros(false);
       setRefreshing(false);
@@ -253,7 +253,7 @@ export default function Solicitudes() {
       const mapped = raw.map(mapTransaccionRetiro);
       setSolicitudesAhorrosData(mapped);
     } catch (error) {
-      console.error('Error al cargar solicitudes de ahorros:', error);
+      console.error("Error al cargar solicitudes de ahorros");
     }
   };
 
@@ -280,7 +280,7 @@ export default function Solicitudes() {
 
       setSolicitudesCDATData(mapped);
     } catch (error) {
-      console.error('Error al cargar solicitudes CDAT:', error);
+      console.error("Error al cargar solicitudes CDAT");
       setSolicitudesCDATData([]);
     }
   };
@@ -312,7 +312,7 @@ export default function Solicitudes() {
 
       setSolicitudesCreditosData(mapped);
     } catch (error) {
-      console.error('Error al cargar solicitudes de crédito:', error);
+      console.error("Error al cargar solicitudes de crédito");
       setSolicitudesCreditosData([]);
     }
   };
@@ -405,7 +405,7 @@ export default function Solicitudes() {
       setShowObservacionesModal(false);
       await handleRefresh();
     } catch (error) {
-      console.error('Error al guardar observaciones:', error);
+      console.error("Error al guardar observaciones");
     }
   };
 

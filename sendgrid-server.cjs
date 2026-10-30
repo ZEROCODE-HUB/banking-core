@@ -22,7 +22,6 @@ const confirmationTemplate = (data) => `<!DOCTYPE html><html lang="es"><head><me
 app.post('/send-otp', async (req, res) => {
     try {
         const { email, otp, nombreUsuario, tipoOperacion, valorTransaccion, idTransaccion, detallesTransaccion } = req.body;
-        console.log(`📧 Enviando OTP a: ${email} - Código: ${otp}`);
         const msg = {
             to: email,
             from: FROM_EMAIL,
@@ -30,10 +29,9 @@ app.post('/send-otp', async (req, res) => {
             html: otpTemplate({ nombreUsuario, otp, tipoOperacion, valorTransaccion, idTransaccion, detallesTransaccion }),
         };
         await sgMail.send(msg);
-        console.log(`✅ OTP enviado exitosamente a: ${email}`);
         res.json({ success: true, message: 'OTP enviado exitosamente' });
     } catch (error) {
-        console.error('❌ Error enviando OTP:', error.response?.body || error.message);
+        console.error('❌ Error enviando OTP');
         res.status(500).json({ success: false, error: error.response?.body?.errors?.[0]?.message || error.message });
     }
 });
@@ -48,10 +46,9 @@ app.post('/send-confirmation', async (req, res) => {
             html: confirmationTemplate({ ...data, fecha: data.fecha || new Date().toLocaleDateString('es-CO') }),
         };
         await sgMail.send(msg);
-        console.log(`✅ Confirmación enviada a: ${data.email}`);
         res.json({ success: true, message: 'Confirmación enviada exitosamente' });
     } catch (error) {
-        console.error('❌ Error enviando confirmación:', error.response?.body || error.message);
+        console.error('❌ Error enviando confirmación');
         res.status(500).json({ success: false, error: error.response?.body?.errors?.[0]?.message || error.message });
     }
 });
@@ -61,7 +58,5 @@ app.get('/health', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor SendGrid corriendo en http://localhost:${PORT}`);
-    console.log(`📧 From: ${FROM_EMAIL}`);
-    console.log(`📬 Endpoints: POST /send-otp | POST /send-confirmation`);
+    process.stdout.write(`Servidor SendGrid escuchando en el puerto ${PORT}\n`);
 });

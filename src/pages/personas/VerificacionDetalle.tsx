@@ -80,7 +80,7 @@ export default function VerificacionDetalle() {
       
       return date.toLocaleDateString('es-CO');
     } catch (error) {
-      console.error('Error al formatear fecha:', error, dateValue);
+      console.error("Error al formatear fecha");
       return 'N/A';
     }
   };
@@ -137,7 +137,7 @@ export default function VerificacionDetalle() {
       
       setModoEdicion(false);
     } catch (error) {
-      console.error('Error al actualizar nombre:', error);
+      console.error("Error al actualizar nombre");
       toast({
         title: "Error",
         description: (error as any)?.message || "Error al actualizar el nombre del usuario",
@@ -161,7 +161,7 @@ export default function VerificacionDetalle() {
             setEmpresaData(empresa);
           }
         } catch (error) {
-          console.error('Error cargando empresa:', error);
+          console.error("Error cargando empresa");
         }
       };
       cargarEmpresa();

@@ -260,7 +260,7 @@ function obtenerPuntaje(tabla: Record<string, number>, valor: string): number {
   }
   
   // No encontrado
-  console.warn(`No se encontró puntaje para: "${valor}" en tabla`, Object.keys(tabla));
+  console.warn("No se encontró puntaje para: \"");
   return 0;
 }
 

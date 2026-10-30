@@ -152,7 +152,7 @@ export function LegalizacionSection() {
 
       setCdatData(cdatsPendientesFirma);
     } catch (error) {
-      console.error('Error al cargar CDATs:', error);
+      console.error("Error al cargar CDATs");
       toast({
         title: "Error",
         description: "No se pudieron cargar los CDATs pendientes de firma",
@@ -274,7 +274,7 @@ export function LegalizacionSection() {
       setSelectedItem(null);
       
     } catch (error) {
-      console.error("❌ Error actualizando estado del CDAT:", error);
+      console.error("❌ Error actualizando estado del CDAT");
       toast({
         title: "Error al actualizar",
         description: `No se pudo cambiar el estado del CDAT: ${error.message}`,

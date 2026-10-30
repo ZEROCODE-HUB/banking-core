@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
-process.on('uncaughtException', (err) => { console.error('ERROR:', err); });
-process.on('unhandledRejection', (err) => { console.error('REJECTION:', err); });
+process.on('uncaughtException', () => { console.error('ERROR no controlado en el servidor de correo'); });
+process.on('unhandledRejection', () => { console.error('Promesa rechazada en el servidor de correo'); });
 
 import express from 'express';
 import cors from 'cors';
@@ -111,8 +111,6 @@ app.post('/send-otp', async (req, res) => {
     try {
         const { email, otp, nombreUsuario, tipoOperacion, valorTransaccion, idTransaccion, detallesTransaccion } = req.body;
 
-        console.log(`📧 Enviando OTP a: ${email} - Código: ${otp}`);
-
         const msg = {
             to: email,
             from: FROM_EMAIL, // ✅ Email verificado
@@ -122,12 +120,11 @@ app.post('/send-otp', async (req, res) => {
         };
 
         await sgMail.send(msg);
-        console.log(`✅ OTP enviado exitosamente a: ${email}`);
 
         res.json({ success: true, message: 'OTP enviado exitosamente' });
 
     } catch (error) {
-        console.error('❌ Error enviando OTP:', error.response?.body || error.message);
+        console.error('❌ Error enviando OTP');
         res.status(500).json({
             success: false,
             error: error.response?.body?.errors?.[0]?.message || error.message
@@ -151,12 +148,11 @@ app.post('/send-confirmation', async (req, res) => {
         };
 
         await sgMail.send(msg);
-        console.log(`✅ Confirmación enviada a: ${data.email}`);
 
         res.json({ success: true, message: 'Confirmación enviada exitosamente' });
 
     } catch (error) {
-        console.error('❌ Error enviando confirmación:', error.response?.body || error.message);
+        console.error('❌ Error enviando confirmación');
         res.status(500).json({
             success: false,
             error: error.response?.body?.errors?.[0]?.message || error.message
@@ -170,7 +166,5 @@ app.get('/health', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor SendGrid corriendo en http://localhost:${PORT}`);
-    console.log(`📧 From: ${FROM_EMAIL}`);
-    console.log(`📬 Endpoints: POST /send-otp | POST /send-confirmation`);
+    process.stdout.write(`Servidor SendGrid escuchando en el puerto ${PORT}\n`);
 });

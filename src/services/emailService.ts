@@ -24,13 +24,6 @@ interface OtpEmailData {
 
 // Mock service para desarrollo
 const mockSendOtp = async (data: OtpEmailData): Promise<boolean> => {
-  console.log('📧 [MOCK] Simulando envío de OTP:', {
-    email: data.toEmail,
-    otp: data.otp,
-    nombreUsuario: data.nombreUsuario,
-    tipoOperacion: data.tipoOperacion,
-    valorTransaccion: data.valorTransaccion
-  });
   
   // Simular delay de red
   await new Promise(resolve => setTimeout(resolve, 1000));
@@ -40,11 +33,6 @@ const mockSendOtp = async (data: OtpEmailData): Promise<boolean> => {
 };
 
 const mockSendConfirmation = async (data: any): Promise<boolean> => {
-  console.log('📧 [MOCK] Simulando envío de confirmación:', {
-    email: data.toEmail,
-    nombreUsuario: data.nombreUsuario,
-    tipoMovimiento: data.tipoMovimiento
-  });
   
   // Simular delay de red
   await new Promise(resolve => setTimeout(resolve, 800));
@@ -56,7 +44,6 @@ export const sendOtpEmail = async (data: OtpEmailData): Promise<boolean> => {
   try {
     // Usar mock service durante desarrollo
     if (USE_MOCK_SERVICE) {
-      console.log('🔧 Usando MOCK service para OTP');
       return await mockSendOtp(data);
     }
     
@@ -85,14 +72,13 @@ export const sendOtpEmail = async (data: OtpEmailData): Promise<boolean> => {
     const result = await response.json();
     
     if (result.success) {
-      console.log('✅ Email OTP enviado exitosamente a:', data.toEmail);
       return true;
     } else {
-      console.error('❌ Error enviando email OTP:', result.error);
+      console.error("❌ Error enviando email OTP");
       return false;
     }
   } catch (error) {
-    console.error('💥 Error en sendOtpEmail:', error);
+    console.error("💥 Error en sendOtpEmail");
     return false;
   }
 };
@@ -110,7 +96,6 @@ export const sendConfirmationEmail = async (data: {
   try {
     // Usar mock service durante desarrollo
     if (USE_MOCK_SERVICE) {
-      console.log('🔧 Usando MOCK service para confirmación');
       return await mockSendConfirmation(data);
     }
     
@@ -135,14 +120,13 @@ export const sendConfirmationEmail = async (data: {
     const result = await response.json();
     
     if (result.success) {
-      console.log('✅ Email confirmación enviado exitosamente a:', data.toEmail);
       return true;
     } else {
-      console.error('❌ Error enviando email confirmación:', result.error);
+      console.error("❌ Error enviando email confirmación");
       return false;
     }
   } catch (error) {
-    console.error('💥 Error en sendConfirmationEmail:', error);
+    console.error("💥 Error en sendConfirmationEmail");
     return false;
   }
 };

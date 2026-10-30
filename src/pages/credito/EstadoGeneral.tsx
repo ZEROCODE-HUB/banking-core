@@ -300,7 +300,7 @@ export default function EstadoGeneral() {
         .select("id, uid, nit, nro_documento, display_name, email, phone_number, created_time")
         .in("id", chunk);
       if (error) {
-        console.warn("No se pudieron cargar usuarios:", error.message);
+        console.warn("No se pudieron cargar usuarios");
         continue;
       }
       (data ?? []).forEach((u) => mapa.set(u.id, u));
@@ -358,7 +358,7 @@ export default function EstadoGeneral() {
       setTodasSolicitudes(rows);
       setSolicitudes(rows.filter((r) => normalizarEstado(r.estado) === "inicio de solicitud"));
     } catch (error) {
-      console.error("Error cargando solicitudes:", error);
+      console.error("Error cargando solicitudes");
     } finally {
       setSolicitudesLoading(false);
     }
@@ -505,7 +505,7 @@ export default function EstadoGeneral() {
           row.viabilidad = scoring.viabilidad;
           
         } catch (error) {
-          console.error("Error calculando scoring para", uid, error);
+          console.error("Error calculando scoring para");
           // Si falla el cálculo, dejar valores por defecto
           row.libre = 0;
           row.total = 0;
@@ -560,7 +560,7 @@ export default function EstadoGeneral() {
       setEnEstudioSummary(summary);
       
     } catch (error) {
-      console.error("Error fetching en estudio:", error);
+      console.error("Error fetching en estudio");
     } finally {
       setEnEstudioLoading(false);
     }
@@ -647,7 +647,7 @@ export default function EstadoGeneral() {
     } catch (error) {
       const err = error as { code?: string; message?: string };
       setBusquedaError(`Error al habilitar el crédito (${err.message ?? "sin detalle"}).`);
-      console.error("Error en handleIniciarSolicitud:", err);
+      console.error("Error en handleIniciarSolicitud");
     } finally {
       setHabilitandoLoading(false);
     }

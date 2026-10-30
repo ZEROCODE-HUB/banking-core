@@ -13,7 +13,6 @@ const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'V1HbPwTWJ
 // Función de respaldo usando FormSubmit (servicio gratuito que funciona inmediatamente)
 const enviarOTPConFormSubmit = async (datosTransaccion) => {
   try {
-    console.log('📧 Intentando envío con FormSubmit (servicio gratuito)...');
     
     const formData = new FormData();
     formData.append('to', datosTransaccion.email);
@@ -36,8 +35,6 @@ Alianza Capital
 Sistema de Gestión Financiera
 `);
 
-    console.log('📨 Enviando email a:', datosTransaccion.email);
-    console.log('🎯 Código OTP:', datosTransaccion.otp);
     
     const response = await fetch('https://formsubmit.co/ajax/jhonahmm23@gmail.com', {
       method: 'POST',
@@ -47,9 +44,6 @@ Sistema de Gestión Financiera
     const result = await response.json();
     
     if (response.ok && result.success) {
-      console.log('✅ FormSubmit envío exitoso!');
-      console.log('📧 Email REAL enviado a:', datosTransaccion.email);
-      console.log('🎯 Código OTP de la transacción:', datosTransaccion.otp);
       
       return {
         success: true,
@@ -61,7 +55,7 @@ Sistema de Gestión Financiera
     }
     
   } catch (error) {
-    console.error('❌ Error con FormSubmit:', error);
+    console.error("❌ Error con FormSubmit");
     throw new Error(`FormSubmit falló: ${error.message}`);
   }
 };
@@ -69,7 +63,6 @@ Sistema de Gestión Financiera
 // Función de respaldo usando EmailJS  
 const enviarOTPConEmailJS = async (datosTransaccion) => {
   try {
-    console.log('📧 Intentando envío con EmailJS (respaldo)...');
     
     // Preparar datos para EmailJS
     const templateParams = {
@@ -82,11 +75,9 @@ const enviarOTPConEmailJS = async (datosTransaccion) => {
       company_name: 'Alianza Capital'
     };
 
-    console.log('📨 Datos para EmailJS:', templateParams);
     
     // Inicializar EmailJS y enviar
     try {
-      console.log('🔐 Inicializando EmailJS...');
       
       const result = await emailjs.send(
         EMAILJS_SERVICE_ID,
@@ -95,9 +86,6 @@ const enviarOTPConEmailJS = async (datosTransaccion) => {
         EMAILJS_PUBLIC_KEY
       );
       
-      console.log('✅ EmailJS envío exitoso:', result);
-      console.log('📧 Email REAL enviado a:', datosTransaccion.email);
-      console.log('🎯 Código OTP:', datosTransaccion.otp);
       
       return {
         success: true,
@@ -106,13 +94,8 @@ const enviarOTPConEmailJS = async (datosTransaccion) => {
       };
       
     } catch (emailError) {
-      console.error('❌ Error enviando con EmailJS:', emailError);
-      
-      // Modo de emergencia - mostrar código en consola
-      console.log('🚨 MODO EMERGENCIA - EmailJS falló');
-      console.log('✅ Código OTP de emergencia disponible');
-      console.log('🎯 USO EMERGENCIA:', datosTransaccion.otp);
-      
+      console.error("❌ Error enviando con EmailJS");
+
       return {
         success: true, // Aún consideramos éxito porque el código está disponible
         message: `OTP modo emergencia: ${datosTransaccion.otp}`,
@@ -121,7 +104,7 @@ const enviarOTPConEmailJS = async (datosTransaccion) => {
     }
     
   } catch (error) {
-    console.error('❌ Error con EmailJS:', error);
+    console.error("❌ Error con EmailJS");
     throw new Error(`EmailJS falló: ${error.message}`);
   }
 };
@@ -153,7 +136,7 @@ const obtenerDatosUsuarioCompletos = async (userId, userEmail) => {
       telefono: usuario.phone || 'N/A'
     };
   } catch (error) {
-    console.error('Error obteniendo datos del usuario:', error);
+    console.error("Error obteniendo datos del usuario");
     return {
       nombreUsuario: 'Usuario',
       nombreCompleto: 'Usuario',
@@ -172,16 +155,8 @@ const obtenerDatosUsuarioCompletos = async (userId, userEmail) => {
 // El administrador recibe el código en su email para completar la operación
 export const enviarCodigoOTP = async (datosTransaccion) => {
   try {
-    console.log('� ============================================');
-    console.log('🚀 PROCESO OTP INICIADO');
-    console.log('🚀 ============================================');
-    console.log('📧 EMAIL DESTINO:', datosTransaccion.email);
-    console.log('🎯 CÓDIGO OTP GENERADO:', datosTransaccion.otp);
-    console.log('🔥 ✨ USA ESTE CÓDIGO:', datosTransaccion.otp);
-    console.log('📋 ↑ ↑ ↑ COPIA EL CÓDIGO DE ARRIBA ↑ ↑ ↑');
     
     // SENDGRID SIMPLIFICADO - Implementación directa que funciona
-    console.log('🔄 Enviando OTP via SendGrid...');
     
     try {
       const emailData = {
@@ -220,8 +195,6 @@ export const enviarCodigoOTP = async (datosTransaccion) => {
         }]
       };
 
-      console.log('📧 Enviando a:', datosTransaccion.email);
-      console.log('🎯 Código OTP:', datosTransaccion.otp);
       
       const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
         method: 'POST',
@@ -232,10 +205,8 @@ export const enviarCodigoOTP = async (datosTransaccion) => {
         body: JSON.stringify(emailData)
       });
       
-      console.log('📊 SendGrid Status:', response.status);
       
       if (response.status === 202) {
-        console.log('✅ ¡SENDGRID EXITOSO! Email enviado');
         return {
           success: true,
           message: `Email enviado exitosamente a ${datosTransaccion.email}`,
@@ -247,21 +218,18 @@ export const enviarCodigoOTP = async (datosTransaccion) => {
         };
       } else {
         const errorText = await response.text();
-        console.error('❌ SendGrid Error:', errorText);
+        console.error("❌ SendGrid Error");
         throw new Error(`SendGrid falló: ${response.status}`);
       }
       
     } catch (sendGridError) {
-      console.error('❌ SENDGRID FALLÓ:', sendGridError.message);
+      console.error("❌ SENDGRID FALLÓ");
       
       // Activar FormSubmit como respaldo directo
-      console.log('🔄 Activando FormSubmit como respaldo...');
       
       try {
         const resultadoFormSubmit = await enviarOTPConFormSubmit(datosTransaccion);
         
-        console.log('✅ ¡FORMSUBMIT EXITOSO! Email enviado');
-        console.log('📬 Revisa tu bandeja de entrada:', datosTransaccion.email);
         
         return {
           success: true,
@@ -273,7 +241,7 @@ export const enviarCodigoOTP = async (datosTransaccion) => {
           }
         };
       } catch (formSubmitError) {
-        console.error('❌ FORMSUBMIT TAMBIÉN FALLÓ:', formSubmitError.message);
+        console.error("❌ FORMSUBMIT TAMBIÉN FALLÓ");
         
         // Como último recurso, usar EmailJS
         try {
@@ -289,7 +257,7 @@ export const enviarCodigoOTP = async (datosTransaccion) => {
             }
           };
         } catch (emailJSError) {
-          console.error('❌ TODOS LOS SERVICIOS FALLARON:', emailJSError.message);
+          console.error("❌ TODOS LOS SERVICIOS FALLARON");
           
           return {
             success: false,
@@ -302,7 +270,7 @@ export const enviarCodigoOTP = async (datosTransaccion) => {
     }
     
   } catch (error) {
-    console.error('❌ Error crítico del sistema completo:', error);
+    console.error("❌ Error crítico del sistema completo");
     
     return {
       success: false,
@@ -316,11 +284,9 @@ export const enviarCodigoOTP = async (datosTransaccion) => {
 // Enviar confirmación de transacción completada
 export const enviarConfirmacionTransaccion = async (datosTransaccion) => {
   try {
-    console.log('📧 Enviando confirmación de transacción');
     
     // En desarrollo, solo simular
     if (!import.meta.env.PROD || !SENDGRID_API_KEY || SENDGRID_API_KEY === 'SG.demo-key') {
-      console.log('🔧 MODO DESARROLLO: Simulando confirmación de transacción');
       return {
         success: true,
         message: 'Confirmación simulada en desarrollo',
@@ -342,7 +308,7 @@ export const enviarConfirmacionTransaccion = async (datosTransaccion) => {
       datosUsuario: datosUsuario
     };
   } catch (error) {
-    console.error('Error enviando confirmación:', error);
+    console.error("Error enviando confirmación");
     return {
       success: false,
       error: error.message

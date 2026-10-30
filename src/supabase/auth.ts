@@ -5,7 +5,7 @@ import { supabase } from './config';
 export const login = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
-    console.error('Error al iniciar sesión:', error.message);
+    console.error("Error al iniciar sesión");
     throw error;
   }
   return data.user;
@@ -14,7 +14,7 @@ export const login = async (email: string, password: string) => {
 export const logout = async () => {
   const { error } = await supabase.auth.signOut();
   if (error) {
-    console.error('Error al cerrar sesión:', error.message);
+    console.error("Error al cerrar sesión");
     throw error;
   }
 };

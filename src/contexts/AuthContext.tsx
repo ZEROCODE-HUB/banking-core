@@ -41,8 +41,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const loadUserDataFromSupabase = async (sbUser: any) => {
     try {
-      console.log('🔄 Cargando datos del usuario desde Supabase...');
-      console.log('📍 UID:', sbUser.id);
 
       const { data: profile, error } = await supabase
         .from('user_profiles')
@@ -53,10 +51,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) throw error;
 
       if (profile) {
-        console.log('✅ Datos obtenidos:', {
-          display_name: (profile as any).display_name ?? (profile as any).nombre,
-          userType: (profile as any).user_type ?? (profile as any).userType,
-        });
 
         const completeUserData: User = {
           uid: sbUser.id,
@@ -70,10 +64,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           userData: profile,
         };
 
-        console.log('✅ Usuario completo:', completeUserData.display_name);
         return completeUserData;
       } else {
-        console.warn('⚠️ Perfil no encontrado en user_profiles');
+        console.warn("⚠️ Perfil no encontrado en user_profiles");
         return {
           uid: sbUser.id,
           email: sbUser.email!,
@@ -82,7 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         };
       }
     } catch (error) {
-      console.error('❌ Error:', error);
+      console.error("❌ Error");
       return {
         uid: sbUser.id,
         email: sbUser.email!,
@@ -94,7 +87,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const unsubscribe = observarAuth(async (sbUser) => {
-      console.log('🔐 Auth state changed:', sbUser ? sbUser.email : 'null');
 
       if (sbUser) {
         const completeUserData = await loadUserDataFromSupabase(sbUser);
@@ -128,7 +120,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           };
         }
       } catch (error) {
-        console.error('Error al cargar datos en login:', error);
+        console.error("Error al cargar datos en login");
       }
     }
 

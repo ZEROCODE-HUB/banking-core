@@ -109,7 +109,7 @@ export function HistorialSection({ docId }: HistorialSectionProps) {
       
       return dateObj.toLocaleDateString('es-CO');
     } catch (error) {
-      console.error('Error formatting date:', error);
+      console.error("Error formatting date");
       return '';
     }
   };
@@ -121,7 +121,7 @@ export function HistorialSection({ docId }: HistorialSectionProps) {
       const firmados = (ahorrosData || []).filter((a: any) => a.AhorrosDocPdf1 && a.AhorrosDocPdf1.trim() !== '');
       setAhorros(firmados);
     } catch (error) {
-      console.error('Error cargando ahorros:', error);
+      console.error("Error cargando ahorros");
     }
   };
 
@@ -131,7 +131,7 @@ export function HistorialSection({ docId }: HistorialSectionProps) {
       const cdatsData = await obtenerCdatsPorUsuario(docId);
       setCdats(cdatsData || []);
     } catch (error) {
-      console.error('Error cargando CDATś:', error);
+      console.error("Error cargando CDATś");
     }
   };
 
