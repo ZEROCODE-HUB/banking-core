@@ -1,13 +1,16 @@
+import { useState } from "react";
 import { Settings, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { ProfileDialog } from "@/components/layout/ProfileDialog";
 import logoIcon from "@/assets/logo.png";
 
 export function TopHeader() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -48,7 +51,14 @@ export function TopHeader() {
             <p className="text-xs text-muted-foreground">Usuario administrador</p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => setProfileOpen(true)}
+          title="Mi perfil"
+          aria-label="Mi perfil"
+        >
           <Settings size={20} />
         </Button>
         <Button 
@@ -60,6 +70,8 @@ export function TopHeader() {
           <LogOut size={20} />
         </Button>
       </div>
+
+      <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} user={user} />
     </header>
   );
 }
