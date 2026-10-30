@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Settings, FileText, DollarSign } from "lucide-react";
+import { Search, FileText, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   CarteraDetailModal,
   type CreditPortfolio,
   type PortfolioStatus,
 } from "@/components/credito/CarteraDetailModal";
+import { mockPortfolio } from "@/services/credit/mockPortfolio";
 
 interface StatusFilter {
   key: PortfolioStatus | "todos";
@@ -19,56 +20,27 @@ interface StatusFilter {
   color?: string;
 }
 
-const statusFilters: StatusFilter[] = [
-  { key: "todos", label: "Todos", count: 45 },
-  { key: "al-dia", label: "Al día", count: 32 },
-  { key: "vencido", label: "Vencido", count: 8 },
-  { key: "mora-temprana", label: "Mora temprana", count: 3 },
-  { key: "mora-tardia", label: "Mora tardía", count: 2 },
-  { key: "castigo", label: "Castigo", count: 0 },
+const STATUS_ORDER: Array<{ key: PortfolioStatus; label: string }> = [
+  { key: "al-dia", label: "Al día" },
+  { key: "vencido", label: "Vencido" },
+  { key: "mora-temprana", label: "Mora temprana" },
+  { key: "mora-tardia", label: "Mora tardía" },
+  { key: "castigo", label: "Castigo" },
 ];
 
-const mockedPortfolio: CreditPortfolio[] = [
-  {
-    id: "CR-001",
-    nombreCompleto: "Ana María Vásquez Torres",
-    numeroDocumento: "1025698741",
-    montoCredito: 5000000,
-    saldoPendiente: 3200000,
-    fechaDesembolso: "15/01/2026",
-    fechaVencimiento: "15/01/2027",
-    cuotasPagadas: 3,
-    cuotasTotales: 12,
-    estadoCartera: "al-dia",
-    diasMora: 0
-  },
-  {
-    id: "CR-002",
-    nombreCompleto: "José Fernando Ruiz Parra",
-    numeroDocumento: "1052471693", 
-    montoCredito: 8000000,
-    saldoPendiente: 6800000,
-    fechaDesembolso: "10/12/2025",
-    fechaVencimiento: "10/12/2026",
-    cuotasPagadas: 2,
-    cuotasTotales: 12,
-    estadoCartera: "vencido",
-    diasMora: 15
-  },
-  {
-    id: "CR-003",
-    nombreCompleto: "Claudia Patricia Moreno Silva",
-    numeroDocumento: "1058623719",
-    montoCredito: 3500000,
-    saldoPendiente: 2100000,
-    fechaDesembolso: "20/11/2025",
-    fechaVencimiento: "20/11/2026",
-    cuotasPagadas: 4,
-    cuotasTotales: 12,
-    estadoCartera: "al-dia",
-    diasMora: 0
-  }
+// Los conteos salen de los datos, no de números escritos a mano: antes la
+// página mostraba 45 créditos mientras la tabla tenía 3.
+const buildStatusFilters = (portfolio: CreditPortfolio[]): StatusFilter[] => [
+  { key: "todos", label: "Todos", count: portfolio.length },
+  ...STATUS_ORDER.map(({ key, label }) => ({
+    key,
+    label,
+    count: portfolio.filter((credit) => credit.estadoCartera === key).length,
+  })),
 ];
+
+const portfolio = mockPortfolio;
+const statusFilters = buildStatusFilters(portfolio);
 
 const getStatusColor = (status: PortfolioStatus): string => {
   const colors = {
@@ -105,7 +77,7 @@ export default function Cartera() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCredit, setSelectedCredit] = useState<CreditPortfolio | null>(null);
 
-  const filteredPortfolio = mockedPortfolio.filter(credit => {
+  const filteredPortfolio = portfolio.filter(credit => {
     const matchesSearch = 
       credit.nombreCompleto.toLowerCase().includes(searchTerm.toLowerCase()) ||
       credit.numeroDocumento.includes(searchTerm) ||
@@ -117,10 +89,10 @@ export default function Cartera() {
   });
 
   // Calculate summary statistics
-  const totalCartera = mockedPortfolio.reduce((sum, credit) => sum + credit.saldoPendiente, 0);
-  const creditosActivos = mockedPortfolio.length;
-  const creditosVencidos = mockedPortfolio.filter(c => c.estadoCartera === "vencido").length;
-  const montoVencido = mockedPortfolio
+  const totalCartera = portfolio.reduce((sum, credit) => sum + credit.saldoPendiente, 0);
+  const creditosActivos = portfolio.length;
+  const creditosVencidos = portfolio.filter(c => c.estadoCartera === "vencido").length;
+  const montoVencido = portfolio
     .filter(c => c.estadoCartera === "vencido")
     .reduce((sum, credit) => sum + credit.saldoPendiente, 0);
 
@@ -199,29 +171,12 @@ export default function Cartera() {
               />
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-13 w-13 rounded-2xl border-border"
-          >
-            <Settings size={24} className="text-foreground" />
-          </Button>
         </div>
 
         {/* Main content card */}
         <Card className="rounded-3xl border-border">
           <CardHeader className="p-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-medium text-foreground">Cartera de créditos</h2>
-              <div className="flex gap-3">
-                <Button variant="outline" className="rounded-xl px-4 py-2">
-                  Exportar reporte
-                </Button>
-                <Button className="bg-primary text-primary-foreground rounded-xl px-4 py-2 font-bold text-base">
-                  Gestión de cobranza
-                </Button>
-              </div>
-            </div>
+            <h2 className="text-xl font-medium text-foreground">Cartera de créditos</h2>
           </CardHeader>
           
           <CardContent className="p-6 pt-0">
