@@ -1,9 +1,8 @@
-import { ReactNode, useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { ReactNode } from "react";
 import { AppSidebar } from "./AppSidebar";
+import { HomeMenu } from "./HomeMenu";
 import { useAuth } from "@/contexts/AuthContext";
-import { Users, ArrowRight, CreditCard, BarChart3, Wallet } from "lucide-react";
-import menuIcon from "@/assets/menu-icon.png";
+import { Users, CreditCard, BarChart3, Wallet } from "lucide-react";
 import fondosIcon from "@/assets/menu/fondos.png";
 import { buildHomeNavigation } from "@/config/navigation";
 
@@ -98,26 +97,6 @@ export function MainLayout({ children, sidebarType, pageTitle }: MainLayoutProps
     : sidebarType === "fondos" 
     ? fondosSections 
     : creditoSections;
-  const navigate = useNavigate();
-  const [showHomeMenu, setShowHomeMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowHomeMenu(false);
-      }
-    }
-
-    if (showHomeMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showHomeMenu]);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -128,44 +107,11 @@ export function MainLayout({ children, sidebarType, pageTitle }: MainLayoutProps
           {pageTitle && (
             <h1 className="text-2xl font-semibold text-foreground">{pageTitle}</h1>
           )}
-          <div className={`relative ${!pageTitle ? 'ml-auto' : ''}`} ref={menuRef}>
-            <button 
-              onClick={() => setShowHomeMenu(!showHomeMenu)}
-              aria-label="Abrir menú de navegación"
-              aria-expanded={showHomeMenu}
-              className="w-10 h-10 bg-card text-foreground rounded-lg flex items-center justify-center hover:bg-muted transition-colors border border-border"
-            >
-              <img src={menuIcon} alt="Menu" className="w-5 h-5 object-contain" />
-            </button>
-            
-            {/* Home Menu Dropdown */}
-            {showHomeMenu && (
-              <div 
-                className="absolute right-0 top-12 w-72 bg-card rounded-xl shadow-xl border border-border z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
-              >
-                <div className="p-3">
-                  {homeMenuItems.map((item, index) => (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        navigate(item.path);
-                        setShowHomeMenu(false);
-                      }}
-                      className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
-                          <img src={item.icon} alt={item.label} className="w-5 h-5 object-contain" />
-                        </div>
-                        <span className="font-medium text-sm text-foreground">{item.label}</span>
-                      </div>
-                      <ArrowRight size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <HomeMenu
+            items={homeMenuItems}
+            className={!pageTitle ? "relative ml-auto" : "relative"}
+            buttonClassName="bg-card"
+          />
         </div>
         <div className="px-6 pb-6">
           {children}

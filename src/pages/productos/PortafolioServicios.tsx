@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, ChevronUp, ChevronDown, Play, ArrowRight, Pencil, Loader2 } from "lucide-react";
+import { LogOut, ChevronUp, ChevronDown, Play, Pencil, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -10,10 +10,10 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabase/config";
 import logoAlianza from "@/assets/logo-alianza.png";
-import menuIcon from "@/assets/menu-icon.png";
 import productosIcon from "@/assets/menu/productos.png";
 
 import { buildHomeNavigation } from "@/config/navigation";
+import { HomeMenu } from "@/components/layout/HomeMenu";
 import { ProfileCard } from "@/components/profile/ProfileCard";
 import { ProfileDialog } from "@/components/profile/ProfileDialog";
 
@@ -37,7 +37,6 @@ export default function PortafolioServicios() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { toast } = useToast();
-  const [showHomeMenu, setShowHomeMenu] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [portafolioExpanded, setPortafolioExpanded] = useState(true);
   const [cuentasExpanded, setCuentasExpanded] = useState(false);
@@ -49,7 +48,6 @@ export default function PortafolioServicios() {
   const [editingProduct, setEditingProduct] = useState<EditingProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   // Product data from Supabase
   const [ahorros, setAhorros] = useState<Producto[]>([]);
@@ -121,23 +119,6 @@ export default function PortafolioServicios() {
   useEffect(() => {
     cargarProductos();
   }, []);
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowHomeMenu(false);
-      }
-    }
-
-    if (showHomeMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showHomeMenu]);
 
   const handleOpenDialog = (category: "ahorros" | "credito" | "cdat") => {
     setCurrentCategory(category);
@@ -443,44 +424,11 @@ export default function PortafolioServicios() {
         <div className="m-4">
           <div className="relative mb-6">
             {/* Top Header with hamburger menu */}
-            <div className="absolute top-0 right-0" ref={menuRef}>
-              <button 
-                onClick={() => setShowHomeMenu(!showHomeMenu)}
-                aria-label="Abrir menú de navegación"
-                aria-expanded={showHomeMenu}
-                className="w-10 h-10 bg-card text-foreground rounded-lg flex items-center justify-center hover:bg-muted transition-colors border border-border"
-              >
-                <img src={menuIcon} alt="Menu" className="w-5 h-5 object-contain" />
-              </button>
-              
-              {/* Home Menu Dropdown */}
-              {showHomeMenu && (
-                <div 
-                  className="absolute right-0 top-12 w-72 bg-card rounded-xl shadow-xl border border-border z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
-                >
-                  <div className="p-3">
-                    {homeMenuItems.map((item, index) => (
-                      <button
-                        key={index}
-                        onClick={() => {
-                          navigate(item.path);
-                          setShowHomeMenu(false);
-                        }}
-                        className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
-                            <img src={item.icon} alt={item.label} className="w-5 h-5 object-contain" />
-                          </div>
-                          <span className="font-medium text-sm text-foreground">{item.label}</span>
-                        </div>
-                        <ArrowRight size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <HomeMenu
+              items={homeMenuItems}
+              className="absolute top-0 right-0"
+              buttonClassName="bg-card"
+            />
 
             {/* Title */}
             <h1 className="text-2xl font-semibold text-foreground">Portafolio de servicios</h1>

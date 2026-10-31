@@ -1859,7 +1859,7 @@ export default function ConsultarUsuarioDetalle() {
         </div>
       )}
 
-      {activeTab === "Vehículos" && <VehiculosSection />}
+      {activeTab === "Vehículos" && <VehiculosSection userId={userData?.id} />}
 
       {activeTab === "Historial" && <HistorialSection docId={userData?.uid} />}
 

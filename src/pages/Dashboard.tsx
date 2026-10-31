@@ -5,7 +5,7 @@ import { obtenerTransaccionesPorEstadoRetiro, obtenerColeccion, obtenerSubcolecc
 import { TopHeader } from "@/components/layout/TopHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowRight, History } from "lucide-react";
-import { buildHomeNavigation } from "@/config/navigation";
+import { buildHomeNavigation, isPendingNavigation } from "@/config/navigation";
 
 interface TransactionCardProps {
   title: string;
@@ -51,13 +51,18 @@ interface MenuItemProps {
   icon: string;
   label: string;
   onClick?: () => void;
+  pending?: boolean;
 }
 
-function MenuItem({ icon, label, onClick }: MenuItemProps) {
+function MenuItem({ icon, label, onClick, pending }: MenuItemProps) {
   return (
     <button 
       onClick={onClick}
-      className="w-full flex items-center justify-between p-4 bg-card rounded-xl border border-border hover:shadow-md transition-all group"
+      disabled={pending}
+      aria-disabled={pending}
+      className={`w-full flex items-center justify-between p-4 bg-card rounded-xl border border-border transition-all group ${
+        pending ? "opacity-60 cursor-not-allowed" : "hover:shadow-md"
+      }`}
     >
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
@@ -65,7 +70,13 @@ function MenuItem({ icon, label, onClick }: MenuItemProps) {
         </div>
         <span className="font-medium text-foreground">{label}</span>
       </div>
-      <ArrowRight size={18} className="text-muted-foreground group-hover:text-primary transition-colors" />
+      {pending ? (
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Próximamente
+        </span>
+      ) : (
+        <ArrowRight size={18} className="text-muted-foreground group-hover:text-primary transition-colors" />
+      )}
     </button>
   );
 }
@@ -242,6 +253,7 @@ export default function Dashboard() {
                 key={index} 
                 icon={item.icon} 
                 label={item.label}
+                pending={isPendingNavigation(item)}
                 onClick={() => navigate(item.path)}
               />
             ))}

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -28,26 +27,6 @@ interface CDATItem {
   fechacreacion: any;
   Estado: string;
   firmado: boolean;
-}
-
-function Pagination() {
-  return (
-    <div className="flex justify-center mt-6">
-      <nav className="flex items-center gap-1">
-        <button className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <button className="w-8 h-8 flex items-center justify-center rounded border border-border text-sm font-medium text-foreground">1</button>
-        <button className="w-8 h-8 flex items-center justify-center text-sm text-muted-foreground hover:text-foreground">2</button>
-        <button className="w-8 h-8 flex items-center justify-center text-sm text-muted-foreground hover:text-foreground">3</button>
-        <span className="w-8 h-8 flex items-center justify-center text-sm text-muted-foreground">...</span>
-        <button className="w-8 h-8 flex items-center justify-center text-sm text-muted-foreground hover:text-foreground">16</button>
-        <button className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground">
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </nav>
-    </div>
-  );
 }
 
 function getAhorroStatusColor(estado: string) {
@@ -216,8 +195,6 @@ export function HistorialSection({ docId }: HistorialSectionProps) {
             </tbody>
           </table>
         </div>
-
-        <Pagination />
       </div>
 
       {/* Empresa (Línea de Ahorro de Nómina) Table */}
@@ -265,8 +242,6 @@ export function HistorialSection({ docId }: HistorialSectionProps) {
               </tbody>
             </table>
           </div>
-
-          <Pagination />
         </div>
       )}
 
@@ -316,8 +291,6 @@ export function HistorialSection({ docId }: HistorialSectionProps) {
             </tbody>
           </table>
         </div>
-
-        <Pagination />
       </div>
     </div>
   );

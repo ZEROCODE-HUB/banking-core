@@ -32,6 +32,9 @@ export interface NavigationItem {
   path: string;
 }
 
+/** Las entradas con path "#" todavía no tienen página asignada. */
+export const isPendingNavigation = (item: NavigationItem): boolean => item.path === "#";
+
 /**
  * Menú superior único. Cualquier cambio de destino se hace aquí y se refleja
  * en el dashboard, el header de MainLayout y los headers locales de
