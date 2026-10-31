@@ -103,6 +103,7 @@ export function CDATDetailModal({ open, onOpenChange, cdat }: CDATDetailModalPro
             </div>
             <button
               onClick={() => onOpenChange(false)}
+              aria-label="Cerrar"
               className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
             >
               <X className="w-4 h-4 text-muted-foreground" />

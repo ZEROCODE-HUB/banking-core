@@ -60,7 +60,7 @@ export function DetalleCompletadoModal({ open, onOpenChange, solicitud }: Detall
               {solicitud.estado}
             </span>
           </div>
-          <button onClick={() => onOpenChange(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={() => onOpenChange(false)} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground transition-colors">
             <X size={20} />
           </button>
         </DialogHeader>

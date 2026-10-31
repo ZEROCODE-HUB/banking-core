@@ -1474,6 +1474,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
                       <Check size={14} className="text-green-500" />
                       <button 
                         onClick={() => handleRemoveFile(file.id)}
+                        aria-label="Eliminar archivo adjunto"
                         className="hover:text-destructive transition-colors"
                       >
                         <X size={14} className="text-muted-foreground" />
@@ -1583,6 +1584,7 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
                 <Check size={14} className="text-green-500" />
                 <button 
                   onClick={() => handleRemoveFileStep2(file.id)}
+                  aria-label="Eliminar archivo adjunto"
                   className="hover:text-destructive transition-colors"
                 >
                   <X size={14} className="text-muted-foreground" />

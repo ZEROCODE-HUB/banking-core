@@ -494,6 +494,7 @@ export function RetirosCDATSection() {
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              aria-label="Página anterior"
               disabled={currentPage === 1 || isLoading}
               className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -522,6 +523,7 @@ export function RetirosCDATSection() {
             
             <button 
               onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredRetiros.length / itemsPerPage), p + 1))}
+              aria-label="Página siguiente"
               disabled={currentPage >= Math.ceil(filteredRetiros.length / itemsPerPage) || isLoading}
               className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
             >

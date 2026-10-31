@@ -1377,7 +1377,11 @@ export default function ConsultarUsuarioDetalle() {
                                transaccion.transactionType === 'Withdrawal' ? (transaccion.withdrawal_info?.bankName || transaccion.bank || 'Transferencia interna') : 
                                (transaccion.bank || 'Transferencia interna')}
                             </span>
-                            <button className="ml-4 p-1 hover:bg-muted rounded">
+                            <button
+                              aria-label="Ver movimientos de la transacción"
+                              aria-expanded={isExpanded}
+                              className="ml-4 p-1 hover:bg-muted rounded"
+                            >
                               {isExpanded ? (
                                 <ChevronUp className="w-4 h-4 text-muted-foreground" />
                               ) : (
@@ -1457,6 +1461,7 @@ export default function ConsultarUsuarioDetalle() {
                         <nav className="flex items-center gap-1">
                           <button 
                             onClick={() => setPaginaActual(p => Math.max(1, p - 1))}
+                            aria-label="Página anterior"
                             disabled={paginaActual === 1}
                             className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-50"
                           >
@@ -1504,6 +1509,7 @@ export default function ConsultarUsuarioDetalle() {
                           
                           <button 
                             onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))}
+                            aria-label="Página siguiente"
                             disabled={paginaActual === totalPaginas}
                             className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-50"
                           >
@@ -1596,6 +1602,7 @@ export default function ConsultarUsuarioDetalle() {
                           </span>
                           <button
                             onClick={() => handleViewCdatDetails(cdat)}
+                            aria-label="Ver detalles del CDAT"
                             className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
                           >
                             <Eye className="w-3.5 h-3.5 text-muted-foreground" />
@@ -1607,6 +1614,8 @@ export default function ConsultarUsuarioDetalle() {
                                 prev.includes(key) ? prev.filter(i => i !== key) : [...prev, key]
                               );
                             }}
+                            aria-label="Ver movimientos del CDAT"
+                            aria-expanded={isDetailsExpanded}
                             className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
                           >
                             {isDetailsExpanded ? (
@@ -1693,7 +1702,11 @@ export default function ConsultarUsuarioDetalle() {
                                   <span className="flex-1 text-sm text-muted-foreground">
                                     {traducirTipoOperacionCdat(mov.tipodeoperacion)}
                                   </span>
-                                  <button className="ml-4 p-1 hover:bg-muted rounded">
+                                  <button
+                                    aria-label="Ver movimientos del CDAT"
+                                    aria-expanded={isMovExpanded}
+                                    className="ml-4 p-1 hover:bg-muted rounded"
+                                  >
                                     {isMovExpanded ? (
                                       <ChevronUp className="w-4 h-4 text-muted-foreground" />
                                     ) : (

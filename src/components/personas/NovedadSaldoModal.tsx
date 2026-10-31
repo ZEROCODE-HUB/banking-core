@@ -376,6 +376,7 @@ export function NovedadSaldoModal({
           </div>
           <button 
             onClick={handleClose}
+            aria-label="Cerrar"
             className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
           >
             <X size={18} className="text-muted-foreground" />

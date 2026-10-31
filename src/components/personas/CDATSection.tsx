@@ -166,12 +166,15 @@ export function CDATSection() {
                     </span>
                     <button
                       onClick={() => handleViewDetails(cdat)}
+                      aria-label="Ver detalles del CDAT"
                       className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
                     >
                       <Eye className="w-3.5 h-3.5 text-muted-foreground" />
                     </button>
                     <button
                       onClick={() => toggleCDATDetails(cdat.id, index)}
+                      aria-label="Ver movimientos del CDAT"
+                      aria-expanded={isDetailsExpanded}
                       className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
                     >
                       {isDetailsExpanded ? (
@@ -240,7 +243,11 @@ export function CDATSection() {
                             </span>
                             <span className="flex-1 text-sm text-muted-foreground">{mov.estado}</span>
                             <span className="flex-1 text-sm text-muted-foreground">{mov.tipo}</span>
-                            <button className="ml-4 p-1 hover:bg-muted rounded">
+                            <button
+                              aria-label="Ver movimientos"
+                              aria-expanded={isMovExpanded}
+                              className="ml-4 p-1 hover:bg-muted rounded"
+                            >
                               {isMovExpanded ? (
                                 <ChevronUp className="w-4 h-4 text-muted-foreground" />
                               ) : (

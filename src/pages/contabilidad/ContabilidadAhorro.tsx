@@ -246,6 +246,8 @@ export default function ContabilidadAhorro() {
             <div className="absolute top-6 right-6" ref={menuRef}>
               <button 
                 onClick={() => setShowHomeMenu(!showHomeMenu)}
+                aria-label="Abrir menú de navegación"
+                aria-expanded={showHomeMenu}
                 className="w-10 h-10 bg-background text-foreground rounded-lg flex items-center justify-center hover:bg-muted transition-colors border border-border"
               >
                 <img src={menuIcon} alt="Menu" className="w-5 h-5 object-contain" />

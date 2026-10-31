@@ -2,16 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { 
-  ChevronLeft, 
-  ChevronRight,
-  Users, 
-  LogOut,
-  Menu,
-  X,
-  Play,
-  ArrowRight
-} from "lucide-react";
+import { ChevronLeft, LogOut, Play } from "lucide-react";
 import logoAlianza from "@/assets/logo-alianza.png";
 import { ProfileCard } from "@/components/profile/ProfileCard";
 import { ProfileDialog } from "@/components/profile/ProfileDialog";
@@ -34,27 +25,43 @@ interface AppSidebarProps {
   className?: string;
 }
 
+// Páginas que abren una subsección por defecto cuando la URL no trae
+// `?seccion=`. El puntero debe marcarla igual que lo hace el contenido.
+const DEFAULT_SECTION_BY_PATH: Record<string, string> = {
+  "/personas/solicitudes": "ahorros",
+  "/personas/cdat": "crear-cdat",
+};
+
 export function AppSidebar({ sections, className }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
-  const [showHomeMenu, setShowHomeMenu] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth(); // Agregar user del contexto de auth
 
+  const isChildLinkActive = (href: string) => {
+    const [path, search] = href.split("?");
+    if (!path) return false;
+
+    if (!search) {
+      return location.pathname === path || location.pathname.startsWith(`${path}/`);
+    }
+
+    if (location.pathname !== path) return false;
+
+    const expected = new URLSearchParams(search).get("seccion");
+    const current =
+      new URLSearchParams(location.search).get("seccion") ??
+      DEFAULT_SECTION_BY_PATH[path] ??
+      null;
+
+    return expected !== null && expected === current;
+  };
+
   const isChildActive = (children: { label: string; href: string }[] | undefined) => {
     if (!children) return false;
-    return children.some(child => {
-      const [childPath, childSearch] = child.href.split('?');
-      if (childSearch) {
-        const seccionValue = childSearch.split('=')[1];
-        // Si la URL no tiene params y este child es el default (ahorros), marcarlo activo
-        if (location.pathname === childPath && !location.search && seccionValue === 'ahorros') return true;
-        return location.pathname === childPath && location.search.includes(seccionValue);
-      }
-      return location.pathname.startsWith(childPath);
-    });
+    return children.some((child) => isChildLinkActive(child.href));
   };
 
   // Auto-expand menus based on current route
@@ -94,17 +101,8 @@ export function AppSidebar({ sections, className }: AppSidebarProps) {
     // Check if any section has active children and expand them
     sections.forEach(section => {
       section.items.forEach(item => {
-        if (item.children) {
-          const hasActive = item.children.some(child => {
-            const [childPath, childSearch] = child.href.split('?');
-            if (childSearch) {
-              const seccionValue = childSearch.split('=')[1];
-              if (location.pathname === childPath && !location.search && seccionValue === 'ahorros') return true;
-              return location.pathname === childPath && location.search.includes(seccionValue);
-            }
-            return location.pathname.startsWith(childPath);
-          });
-          if (hasActive) routeBasedExpansions.push(item.label);
+        if (item.children?.some((child) => isChildLinkActive(child.href))) {
+          routeBasedExpansions.push(item.label);
         }
       });
     });
@@ -112,7 +110,7 @@ export function AppSidebar({ sections, className }: AppSidebarProps) {
     // Merge with existing expanded items — never collapse manually-opened items
     setExpandedItems(prev => [...new Set([...prev, ...routeBasedExpansions])]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   const handleLogout = async () => {
     try {
@@ -133,10 +131,6 @@ export function AppSidebar({ sections, className }: AppSidebarProps) {
 
   const toggleCollapse = () => {
     setCollapsed(!collapsed);
-  };
-
-  const toggleHomeMenu = () => {
-    setShowHomeMenu(!showHomeMenu);
   };
 
   // Calculate menu height based on content
@@ -187,6 +181,7 @@ export function AppSidebar({ sections, className }: AppSidebarProps) {
           {!collapsed && (
             <button 
               onClick={() => setCollapsed(true)}
+              aria-label="Contraer menú lateral"
               className="w-8 h-8 bg-card text-foreground rounded-lg flex items-center justify-center hover:bg-card/90 transition-colors"
             >
               <ChevronLeft size={16} />
@@ -242,24 +237,33 @@ export function AppSidebar({ sections, className }: AppSidebarProps) {
                             </button>
                             {isExpanded && !collapsed && (
                               <ul className="mt-1 ml-6 space-y-1">
-                                {item.children?.map((child, childIndex) => (
-                                  <li key={childIndex}>
-                                    <Link
-                                      to={child.href}
-                                      className={cn(
-                                        "flex items-center gap-2 pl-2 py-2 text-sm transition-colors rounded-lg",
-                                        location.pathname.startsWith(child.href)
-                                          ? "text-sidebar-foreground font-semibold"
-                                          : "text-sidebar-foreground/70 hover:text-sidebar-foreground"
-                                      )}
-                                    >
-                                      {location.pathname.startsWith(child.href) && (
-                                        <Play size={10} className="fill-current" />
-                                      )}
-                                      {child.label}
-                                    </Link>
-                                  </li>
-                                ))}
+                                {item.children?.map((child, childIndex) => {
+                                  const childActive = isChildLinkActive(child.href);
+
+                                  return (
+                                    <li key={childIndex}>
+                                      <Link
+                                        to={child.href}
+                                        aria-current={childActive ? "page" : undefined}
+                                        className={cn(
+                                          "flex items-center gap-2 pl-2 py-2 text-sm transition-colors rounded-lg",
+                                          childActive
+                                            ? "text-sidebar-foreground font-semibold"
+                                            : "text-sidebar-foreground/70 hover:text-sidebar-foreground"
+                                        )}
+                                      >
+                                        {/* Espacio fijo: el puntero no debe mover el texto al activarse */}
+                                        <span
+                                          aria-hidden="true"
+                                          className="w-2.5 shrink-0 flex items-center justify-center"
+                                        >
+                                          {childActive && <Play size={10} className="fill-current" />}
+                                        </span>
+                                        {child.label}
+                                      </Link>
+                                    </li>
+                                  );
+                                })}
                               </ul>
                             )}
                           </>

@@ -90,6 +90,7 @@ export function UserInfoModal({ open, onOpenChange, userData, ahorrosData }: Use
           <DialogTitle className="text-xl font-semibold">Información adicional</DialogTitle>
           <button 
             onClick={() => onOpenChange(false)}
+            aria-label="Cerrar"
             className="w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center hover:bg-muted transition-colors"
           >
             <X size={18} className="text-muted-foreground" />

@@ -792,10 +792,10 @@ export default function EstadoGeneral() {
                       key={tab.key}
                       onClick={() => setActiveTab(tab.key)}
                       className={cn(
-                        "px-3 py-2.5 rounded-xl text-sm font-medium transition-colors min-w-fit",
+                        "px-3 py-2.5 rounded-xl text-sm font-medium transition-colors min-w-fit border",
                         activeTab === tab.key 
-                          ? "bg-background text-foreground border border-border shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
+                          ? "bg-background text-foreground border-border shadow-sm"
+                          : "text-muted-foreground hover:text-foreground border-transparent"
                       )}
                     >
                       {tab.label} (
@@ -844,10 +844,10 @@ export default function EstadoGeneral() {
                               key={s.label}
                               onClick={() => { setActiveCreditTab(s.label); setExpandedEnEstudio(null); }}
                               className={cn(
-                                "flex-1 px-5 py-4 rounded-2xl cursor-pointer transition-colors select-none flex flex-col items-center gap-1.5",
+                                "flex-1 px-5 py-4 rounded-2xl cursor-pointer transition-colors select-none flex flex-col items-center gap-1.5 border",
                                 activeCreditTab === s.label
-                                  ? "bg-[#0B35B8] text-white"
-                                  : "bg-white border border-border hover:bg-muted/40"
+                                  ? "bg-[#0B35B8] text-white border-transparent"
+                                  : "bg-white border-border hover:bg-muted/40"
                               )}
                             >
                               <p className={cn(
@@ -916,6 +916,8 @@ export default function EstadoGeneral() {
                                       </div>
                                       <button
                                         onClick={() => setExpandedEnEstudio(isOpen ? null : row.uid)}
+                                        aria-label="Ver detalle del crédito"
+                                        aria-expanded={isOpen}
                                         className="w-10 h-10 flex items-center justify-center bg-white rounded-xl border border-border hover:bg-muted/50 transition-colors"
                                       >
                                         {isOpen ? <ChevronUp size={18} className="text-foreground" /> : <ChevronDown size={18} className="text-foreground" />}
@@ -1143,6 +1145,8 @@ export default function EstadoGeneral() {
                                   </div>
                                   <button
                                     onClick={() => setExpandedPreAprobado(isOpen ? null : row.uid)}
+                                    aria-label="Ver detalle del crédito"
+                                    aria-expanded={isOpen}
                                     className="w-10 h-10 flex items-center justify-center bg-white rounded-xl border border-border hover:bg-muted/50 transition-colors"
                                   >
                                     {isOpen ? <ChevronUp size={18} className="text-foreground" /> : <ChevronDown size={18} className="text-foreground" />}

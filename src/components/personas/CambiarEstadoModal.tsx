@@ -191,7 +191,7 @@ export function CambiarEstadoModal({ open, onOpenChange, solicitud, onEstadoChan
         <DialogContent aria-describedby={undefined} className="max-w-md p-6 bg-card">
           <DialogHeader className="flex flex-row items-center justify-between">
             <DialogTitle className="text-lg font-semibold text-foreground">Cambiar estado</DialogTitle>
-            <button onClick={handleClose} className="text-muted-foreground hover:text-foreground">
+            <button onClick={handleClose} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
               <X size={20} />
             </button>
           </DialogHeader>
@@ -240,7 +240,7 @@ export function CambiarEstadoModal({ open, onOpenChange, solicitud, onEstadoChan
       <DialogContent aria-describedby={undefined} className="max-w-2xl p-8 bg-card max-h-[90vh] overflow-y-auto">
         <DialogHeader className="flex flex-row items-center justify-between mb-6">
           <DialogTitle className="text-xl font-semibold text-foreground">Cambiar estado</DialogTitle>
-          <button onClick={handleClose} className="text-muted-foreground hover:text-foreground">
+          <button onClick={handleClose} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
             <X size={20} />
           </button>
         </DialogHeader>

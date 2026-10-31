@@ -189,10 +189,10 @@ export default function Cartera() {
                       key={filter.key}
                       onClick={() => setActiveFilter(filter.key)}
                       className={cn(
-                        "px-3 py-2.5 rounded-xl text-sm font-medium transition-colors min-w-fit",
+                        "px-3 py-2.5 rounded-xl text-sm font-medium transition-colors min-w-fit border",
                         activeFilter === filter.key 
-                          ? "bg-background text-foreground border border-border shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
+                          ? "bg-background text-foreground border-border shadow-sm"
+                          : "text-muted-foreground hover:text-foreground border-transparent"
                       )}
                     >
                       {filter.label} ({filter.count})

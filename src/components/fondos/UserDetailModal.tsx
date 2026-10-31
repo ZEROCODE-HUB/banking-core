@@ -218,6 +218,7 @@ export function UserDetailModal({ open, onOpenChange, user }: UserDetailModalPro
             <h2 className="text-xl font-semibold text-foreground">{user.nombre}</h2>
             <button 
               onClick={() => onOpenChange(false)}
+              aria-label="Cerrar"
               className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
             >
               <X size={16} className="text-muted-foreground" />
@@ -392,6 +393,7 @@ export function UserDetailModal({ open, onOpenChange, user }: UserDetailModalPro
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    aria-label="Página anterior"
                     disabled={currentPage === 1}
                     className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -440,6 +442,7 @@ export function UserDetailModal({ open, onOpenChange, user }: UserDetailModalPro
                   
                   <button 
                     onClick={() => setCurrentPage(p => Math.min(Math.ceil(movimientosFiltrados.length / itemsPerPage), p + 1))}
+                    aria-label="Página siguiente"
                     disabled={currentPage * itemsPerPage >= movimientosFiltrados.length}
                     className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
                   >

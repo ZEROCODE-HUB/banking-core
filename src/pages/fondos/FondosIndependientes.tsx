@@ -691,6 +691,7 @@ export default function FondosIndependientes() {
                     <TableCell className="text-center py-4">
                       <button 
                         onClick={() => handleViewUser(row)}
+                        aria-label={`Ver detalle de ${row.nombre}`}
                         className="p-2 rounded-lg hover:bg-muted transition-colors"
                       >
                         <Eye size={18} className="text-muted-foreground" />

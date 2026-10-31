@@ -5,6 +5,7 @@ import areaFinancieraIcon from "@/assets/menu/area-financiera.png";
 import legalIcon from "@/assets/menu/legal.png";
 import huellaConsultaIcon from "@/assets/menu/huella-consulta.png";
 import consultarIcon from "@/assets/menu/consultar.png";
+import inicioIcon from "@/assets/menu/inicio.svg";
 import personasIcon from "@/assets/menu/personas.png";
 import empresasIcon from "@/assets/menu/empresas.png";
 import fondosIcon from "@/assets/menu/fondos.png";
@@ -39,7 +40,7 @@ export interface NavigationItem {
  * Las entradas con path "#" todavía no tienen página asignada.
  */
 export const homeNavigation: NavigationItem[] = [
-  { id: "inicio", icon: consultarIcon, label: "Inicio", path: "/" },
+  { id: "inicio", icon: inicioIcon, label: "Inicio", path: "/" },
   { id: "consultar", icon: consultarIcon, label: "Consultar", path: "/personas/consultar" },
   { id: "personas", icon: personasIcon, label: "Personas", path: "/personas/solicitudes" },
   { id: "empresas", icon: empresasIcon, label: "Empresas", path: "#" },

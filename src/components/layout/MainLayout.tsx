@@ -13,21 +13,6 @@ interface MainLayoutProps {
   pageTitle?: string;
 }
 
-const personasBaseSections = [
-  {
-    title: "PERSONAS",
-    items: [
-      {
-        label: "Atención al cliente",
-        icon: <Users size={20} />,
-        children: [
-          { label: "Consultar usuarios", href: "/personas/consultar" },
-        ],
-      },
-    ],
-  },
-];
-
 const fondosSections = [
   {
     title: "FONDOS",
@@ -146,6 +131,8 @@ export function MainLayout({ children, sidebarType, pageTitle }: MainLayoutProps
           <div className={`relative ${!pageTitle ? 'ml-auto' : ''}`} ref={menuRef}>
             <button 
               onClick={() => setShowHomeMenu(!showHomeMenu)}
+              aria-label="Abrir menú de navegación"
+              aria-expanded={showHomeMenu}
               className="w-10 h-10 bg-card text-foreground rounded-lg flex items-center justify-center hover:bg-muted transition-colors border border-border"
             >
               <img src={menuIcon} alt="Menu" className="w-5 h-5 object-contain" />

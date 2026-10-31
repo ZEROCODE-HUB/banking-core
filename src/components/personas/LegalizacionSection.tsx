@@ -493,6 +493,7 @@ export function LegalizacionSection() {
                 </div>
                 <button 
                   onClick={() => setShowViewModal(false)}
+                  aria-label="Cerrar"
                   className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
                 >
                   <X size={16} className="text-muted-foreground" />

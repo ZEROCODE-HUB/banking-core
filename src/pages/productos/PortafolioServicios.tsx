@@ -319,6 +319,7 @@ export default function PortafolioServicios() {
                   <td className="py-4 text-center">
                     <button 
                       onClick={() => onEdit(index, product)}
+                      aria-label="Editar producto"
                       className="p-2 hover:bg-muted rounded-lg transition-colors"
                       disabled={loading}
                     >
@@ -445,6 +446,8 @@ export default function PortafolioServicios() {
             <div className="absolute top-0 right-0" ref={menuRef}>
               <button 
                 onClick={() => setShowHomeMenu(!showHomeMenu)}
+                aria-label="Abrir menú de navegación"
+                aria-expanded={showHomeMenu}
                 className="w-10 h-10 bg-card text-foreground rounded-lg flex items-center justify-center hover:bg-muted transition-colors border border-border"
               >
                 <img src={menuIcon} alt="Menu" className="w-5 h-5 object-contain" />
