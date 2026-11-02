@@ -1,6 +1,6 @@
 # Roles and Permissions — Proposed Roadmap
 
-**Status:** Phases 0, 2, 4 and 5 implemented in code. Phases 1 and 3 written as reviewed migrations, not yet applied.
+**Status:** Phases 0, 2, 4 and 5 implemented in code. Phase 1 and the role-change guard are ready to apply. Phase 3 (RLS) is deferred to a separate hardening phase, as agreed.
 **Date:** 2 November 2026
 **Scope:** The six items from the roles review, plus the `user_type = 'Basic User'` filter in the verification queue.
 

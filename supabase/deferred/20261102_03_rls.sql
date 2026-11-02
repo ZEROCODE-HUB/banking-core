@@ -1,7 +1,8 @@
 -- ============================================================================
--- 02. RLS: el servidor es el límite real del rol
+-- 03. RLS: el servidor es el límite real del rol
 --
--- Requiere 20261102_01_roles.sql. Aplicar primero en un proyecto de staging:
+-- DIFERIDA. No aplicar todavía. Requiere 20261102_01_roles.sql y
+-- 20261102_02_role_guard.sql. Aplicar primero en un proyecto de staging:
 -- las políticas cambian el acceso de todas las sesiones autenticadas.
 --
 -- Objetivo:
@@ -11,7 +12,7 @@
 --   * solo CRM SuperAdmin cambia roles y ve la auditoría;
 --   * las tablas de negocio quedan restringidas al personal.
 --
--- Rollback: supabase/migrations/20261102_02_rls_rollback.sql
+-- Rollback: supabase/deferred/20261102_03_rls_rollback.sql
 -- ============================================================================
 
 begin;
@@ -71,8 +72,9 @@ security definer
 set search_path = public
 as $$
 begin
-  -- El service role se usa para recuperación y migraciones.
-  if coalesce(auth.role(), '') = 'service_role' then
+  -- Sin JWT (SQL Editor, migraciones) o con service role, el cambio es
+  -- administrativo y se permite.
+  if coalesce(auth.role(), '') in ('', 'service_role') then
     return new;
   end if;
 
