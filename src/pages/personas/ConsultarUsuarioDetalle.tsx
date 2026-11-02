@@ -703,6 +703,10 @@ export default function ConsultarUsuarioDetalle() {
 
       if (ahorrosFirmados.length > 0) {
         setAhorrosData(ahorrosFirmados);
+        setAhorroSeleccionado(prev => {
+          if (!prev) return ahorrosFirmados[0] ?? null;
+          return ahorrosFirmados.find((a) => a.id === prev.id) ?? ahorrosFirmados[0] ?? null;
+        });
         
         // Calcular totales
         let totalDepositado = 0;
@@ -1802,13 +1806,12 @@ export default function ConsultarUsuarioDetalle() {
         userName={userData?.display_name || "Usuario no disponible"}
         accountType={ahorroSeleccionado?.SavingsType || "Tipo de cuenta no disponible"}
         currentBalance={formatAmount(ahorroSeleccionado?.montoTotal || 0)}
-        userData={userData}
-        authenticatedUser={{
-          display_name: "Administrador del Sistema",
-          email: "admin@alianzacapital.co",
-          role: "admin"
-        }}
         ahorroSeleccionado={ahorroSeleccionado}
+        onApplied={async () => {
+          if (userData?.uid) {
+            await cargarDatosAhorro(userData.uid);
+          }
+        }}
       />
 
       {/* CDAT Detail Modal */}

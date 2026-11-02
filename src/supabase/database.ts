@@ -299,35 +299,21 @@ export const obtenerTransaccionesAhorro = async (ahorrosId: string) => {
   return normalizeRows(data ?? []);
 };
 
-export const crearTransaccionNovedadSaldo = async (transactionData: any) => {
-  const payload = {
-    amount: transactionData.amount,
-    authorization_ref: transactionData.authorization,
-    transaction_type: transactionData.transactionType,
-    user_ref: transactionData.userRef,
-    currency: 'COP',
-    status: 'APPROVED',
-    message: transactionData.message,
-    savingtipe: transactionData.savingtipe,
-    ahorros_id: transactionData.ahorrosId,
-    amount_from_savings: 0,
-    amount_from_total: transactionData.amountFromTotal,
-    empresa_id: transactionData.empresaId ?? 'EMP_DEFAULT',
-    firebase_date: new Date().toISOString(),
-    last_updated: new Date().toISOString(),
-    sub_payment: true,
-    is_novedad_saldo: true,
-    user_email: transactionData.userEmail,
-    user_name: transactionData.userName,
-    user_phone: transactionData.userPhone,
-    user_id_number: transactionData.userIdNumber ?? 'DOC_DEFAULT',
-    withdrawal_info: transactionData.withdrawalInfo ?? null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-  const { data, error } = await supabase.from('transactions').insert(payload).select().single();
+export const verificarOtpNovedad = async (novedadId: string, otp: string) => {
+  const { data, error } = await supabase.rpc('verificar_otp_novedad', {
+    p_novedad_id: novedadId,
+    p_otp: otp,
+  });
   if (error) throw error;
-  return data.id;
+  return data;
+};
+
+export const aplicarNovedadSaldo = async (novedadId: string) => {
+  const { data, error } = await supabase.rpc('aplicar_novedad_saldo', {
+    p_novedad_id: novedadId,
+  });
+  if (error) throw error;
+  return data;
 };
 
 export const actualizarSaldoCuentaAhorro = async (ahorrosId: string, monto: number, operationType: 'add' | 'remove') => {

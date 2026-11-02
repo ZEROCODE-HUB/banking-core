@@ -11,8 +11,9 @@ import { Input } from "@/components/ui/input";
 import { X, Plus, Minus, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { enviarCodigoOTP, enviarConfirmacionTransaccion } from "@/utils/sendgrid";
-import { crearTransaccionNovedadSaldo, actualizarSaldoCuentaAhorro } from "@/supabase/database";
+import { solicitarOtpNovedad, enviarConfirmacionTransaccion } from "@/utils/sendgrid";
+import { verificarOtpNovedad, aplicarNovedadSaldo } from "@/supabase/database";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NovedadSaldoModalProps {
   open: boolean;
@@ -20,27 +21,12 @@ interface NovedadSaldoModalProps {
   userName: string;
   accountType: string;
   currentBalance: string;
-  userData?: {
-    id?: string;
-    uid?: string;
-    email?: string;
-    display_name?: string;
-    nro_documento?: string;
-    nit?: string;
-    phone_number?: string;
-    empresa?: string;
-    [key: string]: any;
-  };
-  authenticatedUser?: {
-    display_name?: string;
-    [key: string]: any;
-  };
   ahorroSeleccionado?: {
     id: string;
     SavingsType: string;
     montoTotal: number;
-    [key: string]: any;
   };
+  onApplied?: () => void | Promise<void>;
 }
 
 type ModalStep = "edit" | "summary" | "otp" | "validated" | "success";
@@ -51,19 +37,20 @@ export function NovedadSaldoModal({
   userName, 
   accountType, 
   currentBalance,
-  userData,
-  authenticatedUser,
-  ahorroSeleccionado
+  ahorroSeleccionado,
+  onApplied
 }: NovedadSaldoModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [step, setStep] = useState<ModalStep>("edit");
   const [operationType, setOperationType] = useState<"add" | "debit">("add");
   const [amount, setAmount] = useState("");
   const [detail, setDetail] = useState("");
   const [otpCode, setOtpCode] = useState(["", "", "", "", "", ""]);
-  const [generatedOtp, setGeneratedOtp] = useState("");
   const [countdown, setCountdown] = useState(59);
-  const [transactionId, setTransactionId] = useState("");
+  const [novedadId, setNovedadId] = useState("");
+  const [novedadReference, setNovedadReference] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState("");
   const [executionDate, setExecutionDate] = useState("");
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -78,12 +65,6 @@ export function NovedadSaldoModal({
     return value.replace(/[^\d]/g, '');
   };
 
-  const generateTransactionId = (): string => {
-    const min = 3000000;
-    const max = 3999999;
-    return Math.floor(Math.random() * (max - min + 1) + min).toString();
-  };
-
   const getCurrentDate = (): string => {
     const now = new Date();
     const day = now.getDate().toString().padStart(2, '0');
@@ -92,31 +73,8 @@ export function NovedadSaldoModal({
     return `${day}/${month}/${year}`;
   };
 
-  const generateOtp = (): string => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  };
-
-  const sendOtpEmailToUser = async (otp: string) => {
-    const emailDestino = "novedaddesaldo@alianzacapital.co";
-
-    const datosTransaccion = {
-      userId: userData?.id || userData?.uid || authenticatedUser?.uid || 'sistema-admin',
-      email: emailDestino,
-      nombreUsuario: userData?.display_name || userName || 'Usuario',
-      tipoOperacion: operationType === 'add' ? 'Deposito' : 'Debito',
-      valorTransaccion: `$${formatNumber(amount)}`,
-      idTransaccion: transactionId,
-      detallesTransaccion: detail,
-      otp: otp
-    };
-
-    try {
-      const result = await enviarCodigoOTP(datosTransaccion);
-      return result.success === true;
-    } catch (error) {
-      console.error("Error enviando el código OTP");
-      return false;
-    }
+  const getErrorMessage = (error: unknown, fallback: string): string => {
+    return error instanceof Error && error.message ? error.message : fallback;
   };
 
   const resetModal = () => {
@@ -125,12 +83,14 @@ export function NovedadSaldoModal({
     setAmount("");
     setDetail("");
     setOtpCode(["", "", "", "", "", ""]);
-    setGeneratedOtp("");
-    setTransactionId("");
+    setNovedadId("");
+    setNovedadReference("");
+    setIdempotencyKey("");
     setExecutionDate("");
   };
 
   const handleClose = () => {
+    if (isProcessing) return;
     resetModal();
     onOpenChange(false);
   };
@@ -152,134 +112,184 @@ export function NovedadSaldoModal({
       return;
     }
 
-    const newTransactionId = generateTransactionId();
-    const currentDate = getCurrentDate();
-    
-    setTransactionId(newTransactionId);
-    setExecutionDate(currentDate);
+    setIdempotencyKey(crypto.randomUUID());
+    setNovedadId("");
+    setNovedadReference("");
+    setExecutionDate(getCurrentDate());
     setStep("summary");
   };
 
   const handleOtpAuthorization = async () => {
+    if (isProcessing) return;
+
+    if (!user?.uid) {
+      toast({
+        title: "Sesión no disponible",
+        description: "Vuelve a iniciar sesión para autorizar la novedad.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!ahorroSeleccionado?.id) {
+      toast({
+        title: "Error",
+        description: "Datos de la cuenta de ahorro no disponibles",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const numericAmount = parseInt(getNumericValue(amount), 10);
+    if (!numericAmount || numericAmount <= 0) {
+      toast({
+        title: "Monto inválido",
+        description: "El monto debe ser mayor a 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
     try {
-      const otp = generateOtp();
-      setGeneratedOtp(otp);
-      
-      const result = await sendOtpEmailToUser(otp);
-      
-      if (result) {
+      const result = await solicitarOtpNovedad({
+        ahorrosId: ahorroSeleccionado.id,
+        operationType,
+        amount: numericAmount,
+        detail,
+        idempotencyKey: idempotencyKey || undefined,
+        novedadId: novedadId || undefined,
+      });
+
+      if (!result.success) {
         toast({
-          title: "Código OTP enviado",
-          description: "Email enviado exitosamente. Revisa tu correo para el registro documentado.",
-          duration: 4000,
-        });
-      } else {
-        toast({
-          title: "Código OTP generado",
-          description: "No se pudo enviar el email. Contacta al administrador para obtener el código.",
+          title: "No se pudo enviar el código",
+          description: result.error || "Intente nuevamente.",
           variant: "destructive",
-          duration: 4000,
+          duration: 5000,
         });
+        return;
       }
 
-      // Siempre avanza al paso OTP
+      setNovedadId(result.novedadId);
+      setNovedadReference(result.reference || "");
+      setOtpCode(["", "", "", "", "", ""]);
       setStep("otp");
       setCountdown(59);
 
+      toast({
+        title: "Código OTP enviado",
+        description: "El código se envió al buzón de operaciones. Tiene 10 minutos para usarlo.",
+        duration: 5000,
+      });
     } catch (error) {
-      console.error("Error enviando OTP");
+      console.error("Error solicitando el OTP de la novedad");
       toast({
         title: "Error al enviar código",
-        description: "No se pudo enviar el código OTP. Intente nuevamente.",
+        description: getErrorMessage(error, "No se pudo enviar el código OTP. Intente nuevamente."),
         variant: "destructive",
-        duration: 4000,
+        duration: 5000,
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const handleValidateCode = () => {
-    const enteredOtp = otpCode.join(''); 
-    
-    if (enteredOtp === generatedOtp) {
-      setStep("validated");
-    } else {
+  const handleValidateCode = async () => {
+    if (isProcessing) return;
+
+    const enteredOtp = otpCode.join('');
+    if (enteredOtp.length !== 6) {
       toast({
-        title: "Código incorrecto",
-        description: "Código OTP incorrecto. Verifique e intente nuevamente.",
+        title: "Código incompleto",
+        description: "Ingresa los seis dígitos del código.",
         variant: "destructive",
       });
+      return;
+    }
+
+    if (!novedadId) {
+      toast({
+        title: "Solicitud no disponible",
+        description: "Vuelve a solicitar el código OTP.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const result = await verificarOtpNovedad(novedadId, enteredOtp);
+
+      if (result?.ok) {
+        setStep("validated");
+        return;
+      }
+
+      const remaining = typeof result?.attempts_remaining === 'number'
+        ? ` Intentos restantes: ${result.attempts_remaining}.`
+        : '';
+
+      toast({
+        title: result?.code === 'expired' || result?.code === 'locked'
+          ? "Código no válido"
+          : "Código incorrecto",
+        description: `${result?.message || 'Verifica el código e intente nuevamente.'}${remaining}`,
+        variant: "destructive",
+        duration: 5000,
+      });
       setOtpCode(["", "", "", "", "", ""]);
+    } catch (error) {
+      console.error("Error verificando el OTP de la novedad");
+      toast({
+        title: "Error al validar código",
+        description: getErrorMessage(error, "No se pudo validar el código. Intente nuevamente."),
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleFinalize = async () => {
     if (isProcessing) return;
+
+    if (!novedadId) {
+      toast({
+        title: "Solicitud no disponible",
+        description: "Vuelve a iniciar la novedad de saldo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      if (!userData?.id && !userData?.uid) {
-        toast({ title: "Error", description: "Datos de usuario no disponibles", variant: "destructive" });
-        return;
-      }
-      if (!ahorroSeleccionado?.id) {
-        toast({ title: "Error", description: "Datos de la cuenta de ahorro no disponibles", variant: "destructive" });
-        return;
+      const result = await aplicarNovedadSaldo(novedadId);
+
+      if (!result?.ok) {
+        throw new Error(result?.message || 'No se pudo aplicar la novedad.');
       }
 
-      const numericAmount = parseInt(getNumericValue(amount));
-      const documento = userData.nro_documento || userData.nit || userData.id || "";
-
-      const transactionData = {
-        amount: numericAmount,
-        authorization: transactionId,
-        transactionType: operationType === 'add' ? 'Depositado' : 'Withdrawal',
-        userRef: userData.id || userData.uid,
-        message: detail,
-        savingtipe: ahorroSeleccionado.SavingsType || "Linea de Ahorro",
-        ahorrosId: ahorroSeleccionado.id,
-        amountFromTotal: numericAmount,
-        empresaId: userData.empresa || "",
-        userEmail: userData.email || "",
-        userName: userData.display_name || userData.nombre || "",
-        userPhone: userData.phone_number || userData.telefono1 || "",
-        userIdNumber: documento,
-        withdrawalInfo: {
-          accountNumber: documento ? `${documento}-0` : null,
-          accountType: ahorroSeleccionado.SavingsType,
-          bankName: "Alianza Capital"
-        }
-      };
-
-      await crearTransaccionNovedadSaldo(transactionData);
-
-      await actualizarSaldoCuentaAhorro(
-        ahorroSeleccionado.id, 
-        numericAmount, 
-        operationType === 'add' ? 'add' : 'remove'
-      );
-
-      await enviarConfirmacionTransaccion({
-        userId: userData?.uid || authenticatedUser?.uid || 'sistema-admin',
-        email: userData?.email || "",
-        tipoMovimiento: operationType === 'add' ? 'Deposito' : 'Debito',
-        valorTransaccion: `$${formatNumber(amount)}`,
-        idTransaccion: transactionId,
-        detallesTransaccion: detail
-      });
-
+      setNovedadReference(result.reference || novedadReference);
       setStep("success");
 
-      setTimeout(() => {
-        resetModal();
-        onOpenChange(false);
-        window.location.reload();
-      }, 2000);
+      // La novedad ya quedó aplicada en la base. Un fallo del correo de
+      // confirmación no revierte el movimiento.
+      try {
+        await enviarConfirmacionTransaccion({ novedadId });
+      } catch {
+        console.error("No se pudo enviar la confirmación de la novedad");
+      }
 
+      await onApplied?.();
     } catch (error) {
-      console.error("Error al finalizar novedad");
+      console.error("Error al aplicar la novedad de saldo");
       toast({
         title: "Error",
-        description: (error as any)?.message || "Error al procesar la novedad de saldo. Intente nuevamente.",
+        description: getErrorMessage(error, "Error al procesar la novedad de saldo. Intente nuevamente."),
         variant: "destructive",
+        duration: 6000,
       });
     } finally {
       setIsProcessing(false);
@@ -303,25 +313,60 @@ export function NovedadSaldoModal({
   }, [step, countdown]);
 
   const handleResendOtp = async () => {
-    try {
-      const otp = generateOtp();
-      setGeneratedOtp(otp);
-      await sendOtpEmailToUser(otp);
+    if (isProcessing) return;
+
+    if (!ahorroSeleccionado?.id) {
       toast({
-        title: "Código reenviado",
-        description: "Hemos reenviado un nuevo código de verificación a tu correo.",
-        duration: 4000,
+        title: "Error",
+        description: "Datos de la cuenta de ahorro no disponibles",
+        variant: "destructive",
       });
+      return;
+    }
+
+    const numericAmount = parseInt(getNumericValue(amount), 10);
+
+    setIsProcessing(true);
+    try {
+      const result = await solicitarOtpNovedad({
+        ahorrosId: ahorroSeleccionado.id,
+        operationType,
+        amount: numericAmount,
+        detail,
+        idempotencyKey: idempotencyKey || undefined,
+        novedadId: novedadId || undefined,
+      });
+
+      if (!result.success) {
+        toast({
+          title: "No se pudo reenviar el código",
+          description: result.error || "Intente nuevamente.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        return;
+      }
+
+      setNovedadId(result.novedadId);
+      setNovedadReference(result.reference || novedadReference);
       setCountdown(59);
       setOtpCode(["", "", "", "", "", ""]);
-    } catch (error) {
-      console.error("Error reenviando OTP");
+
       toast({
-        title: "Error al reenviar código",
-        description: "No se pudo reenviar el código OTP. Intente nuevamente.",
-        variant: "destructive",
+        title: "Código reenviado",
+        description: "Hemos reenviado un nuevo código al buzón de operaciones.",
         duration: 4000,
       });
+    } catch (error) {
+      console.error("Error reenviando el OTP de la novedad");
+      toast({
+        title: "Error al reenviar código",
+        description: getErrorMessage(error, "No se pudo reenviar el código OTP. Intente nuevamente."),
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -352,9 +397,14 @@ export function NovedadSaldoModal({
           <h3 className="text-xl font-semibold text-foreground mb-2">
             Novedad ejecutada exitosamente
           </h3>
-          <p className="text-muted-foreground text-sm mb-8">
+          <p className="text-muted-foreground text-sm mb-2">
             Los cambios se han guardado correctamente.
           </p>
+          {novedadReference && (
+            <p className="text-sm text-foreground mb-8">
+              Referencia: <span className="font-semibold">{novedadReference}</span>
+            </p>
+          )}
           <Button 
             onClick={handleAccept}
             className="w-56 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full py-6"
@@ -511,8 +561,8 @@ export function NovedadSaldoModal({
                     <p className="text-sm font-medium text-foreground">Alianza Capital</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">ID de Transacción</p>
-                    <p className="text-sm font-medium text-foreground">{transactionId || 'Generando...'}</p>
+                    <p className="text-xs text-muted-foreground mb-1">Referencia</p>
+                    <p className="text-sm font-medium text-foreground">{novedadReference || 'Se asigna al autorizar'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Fecha de ejecución</p>
@@ -583,25 +633,32 @@ export function NovedadSaldoModal({
           )}
 
           {step === "summary" && (
-            <Button 
-              onClick={handleOtpAuthorization}
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-full py-6 text-base font-medium"
-            >
-              Autorización OTP
-            </Button>
+            <>
+              <p className="text-xs text-center text-muted-foreground">
+                Solicitud registrada por {user?.display_name || user?.email || "la sesión actual"}
+              </p>
+              <Button
+                onClick={handleOtpAuthorization}
+                disabled={isProcessing}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-full py-6 text-base font-medium disabled:opacity-60"
+              >
+                {isProcessing ? "Enviando código..." : "Autorización OTP"}
+              </Button>
+            </>
           )}
 
           {step === "otp" && (
-            <Button 
+            <Button
               onClick={handleValidateCode}
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-full py-6 text-base font-medium"
+              disabled={isProcessing}
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-full py-6 text-base font-medium disabled:opacity-60"
             >
-              Validar código
+              {isProcessing ? "Validando..." : "Validar código"}
             </Button>
           )}
 
           {step === "validated" && (
-            <Button 
+            <Button
               onClick={handleFinalize}
               disabled={isProcessing}
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-full py-6 text-base font-medium disabled:opacity-60"

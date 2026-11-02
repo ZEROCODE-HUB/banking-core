@@ -1,57 +1,74 @@
+import { supabase } from '@/supabase/config';
+
 const SERVER_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-export const enviarCodigoOTP = async (datosTransaccion) => {
+const getAccessToken = async () => {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) return null;
+  return data.session?.access_token ?? null;
+};
+
+const postJson = async (path, payload) => {
+  const token = await getAccessToken();
+  if (!token) {
+    return { success: false, error: 'La sesión no está disponible. Vuelve a iniciar sesión.' };
+  }
+
   try {
-    const response = await fetch(`${SERVER_URL}/send-otp`, {
+    const response = await fetch(`${SERVER_URL}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email:               datosTransaccion.email,
-        otp:                 datosTransaccion.otp,
-        nombreUsuario:       datosTransaccion.nombreUsuario || 'Administrador',
-        tipoOperacion:       datosTransaccion.tipoOperacion || 'Novedad de saldo',
-        valorTransaccion:    datosTransaccion.valorTransaccion || '$0',
-        idTransaccion:       datosTransaccion.idTransaccion || 'N/A',
-        detallesTransaccion: datosTransaccion.detallesTransaccion || '',
-      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
     });
-    const result = await response.json();
-    if (result.success) {
-      return { success: true };
-    } else {
-      return { success: false, error: result.error };
+
+    let result = null;
+    try {
+      result = await response.json();
+    } catch {
+      result = null;
     }
-  } catch (error) {
-    return { success: false, error: error.message };
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: result?.error || 'El servicio de correo no respondió correctamente.',
+      };
+    }
+
+    return result ?? { success: false, error: 'Respuesta vacía del servicio de correo.' };
+  } catch {
+    return { success: false, error: 'No se pudo conectar con el servicio de correo.' };
   }
 };
 
-export const enviarConfirmacionTransaccion = async (datosTransaccion) => {
-  try {
-    const response = await fetch(`${SERVER_URL}/send-confirmation`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email:               datosTransaccion.email,
-        nombreUsuario:       datosTransaccion.nombreUsuario || 'Usuario',
-        tipoMovimiento:      datosTransaccion.tipoMovimiento || 'Movimiento',
-        valorTransaccion:    datosTransaccion.valorTransaccion || '$0',
-        idTransaccion:       datosTransaccion.idTransaccion || 'N/A',
-        detallesTransaccion: datosTransaccion.detallesTransaccion || '',
-        fecha:               new Date().toLocaleDateString('es-CO'),
-      }),
-    });
-    const result = await response.json();
-    return result.success ? { success: true } : { success: false, error: result.error };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
+// El navegador solo pide que se emita y envíe el OTP. El código nunca vuelve
+// en la respuesta: lo genera y lo guarda el servidor.
+export const solicitarOtpNovedad = async ({
+  ahorrosId,
+  operationType,
+  amount,
+  detail,
+  idempotencyKey,
+  novedadId,
+}) => {
+  return postJson('/novedad-saldo/solicitar-otp', {
+    ahorrosId,
+    operationType,
+    amount,
+    detail,
+    idempotencyKey,
+    novedadId,
+  });
 };
 
-export const formatearMonto = (monto) => {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-  }).format(monto);
+// La confirmación se arma en el servidor a partir de la novedad aplicada. Así
+// el navegador no puede cambiar el destinatario ni los datos del movimiento.
+export const enviarConfirmacionTransaccion = async ({ novedadId }) => {
+  if (!novedadId) {
+    return { success: false, error: 'Falta la referencia de la novedad.' };
+  }
+  return postJson('/novedad-saldo/confirmacion', { novedadId });
 };

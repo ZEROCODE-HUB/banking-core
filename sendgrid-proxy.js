@@ -1,225 +1,455 @@
 import 'dotenv/config';
 import http from 'http';
-import https from 'https';
-import url from 'url';
+import { randomInt } from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
 
-const PORT = 3001;
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+process.on('uncaughtException', () => {
+  console.error('ERROR no controlado en el servicio de correo');
+});
+process.on('unhandledRejection', () => {
+  console.error('Promesa rechazada en el servicio de correo');
+});
 
-// Template para código OTP
-const OTP_TEMPLATE = {
-  "from": {
-    "email": "notificaciones@alianzacapital.co"
-  },
-  "reply_to": {
-    "email": "info@alianzacapital.co"
-  },
-  "content": [
-    {
-      "type": "text/html",
-      "value": "<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Código OTP transacción interna</title></head><body style=\"margin:0;padding:20px;background-color:#f5f5f5;font-family:Arial,sans-serif\"><div style=\"max-width:700px;margin:0 auto;background-color:#ffffff;padding:40px\"><p style=\"font-size:14px;color:#000;line-height:1.6;margin:20px 0\"><b>CODIGO DE VALIDACION DE TRANSACCION</b></p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\">Asunto: Código OTP transacción interna ({{nombreUsuario}})</p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\">Para completar la validación de la transacción que está realizando en su cuenta de Alianza Capital, le enviamos su código de verificación:</p><div style=\"text-align:center;margin:30px 0\"><span style=\"font-size:40px;font-weight:bold;letter-spacing:2px\">{{otp}}</span><p style=\"margin-top:10px;font-size:14px\">Código OTP</p></div><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\">Este código es personal y de un solo uso. Por motivos de seguridad, <b>no lo comparta con nadie</b>, ni siquiera con personal de Alianza Capital.</p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\">Si usted no ha iniciado esta operación, comuníquese de inmediato con nuestro equipo de soporte.</p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\"><b>Detalles de la transacción:</b></p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:5px 0\">Tipo de operación: <b>{{tipoOperacion}}</b><br>Valor: <b>{{valorTransaccion}}</b><br>Id transacción: <b>{{idTransaccion}}</b><br>Nombre de usuario: <b>{{nombreCompleto}}</b><br>Numero documento: <b>{{numeroDocumento}}</b><br>Tipo de documento: <b>{{tipoDocumento}}</b><br>Cuenta: <b>{{lineaAhorro}} {{numeroDocumento}}</b></p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\">Detalles de transacción: <b>{{detallesTransaccion}}</b></p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\">Gracias por ayudarnos a mantener la seguridad de su cuenta.</p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\"><b>Equipo Alianza Capital</b><br>www.alianzacapital.com<br>info@alianzacapital.co</p><p style=\"font-size:13px;color:#666;line-height:1.6;margin:20px 0;font-style:italic\">Este es un mensaje automático, por favor no lo responda directamente.</p></div></body></html>"
-    }
-  ]
+const PORT = Number(process.env.MAIL_PROXY_PORT || 3001);
+const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+const MAIL_PROVIDER = (process.env.MAIL_PROVIDER || (process.env.RESEND_API_KEY ? 'resend' : 'sendgrid')).toLowerCase();
+const MAIL_FROM = process.env.MAIL_FROM || 'notificaciones@alianzacapital.co';
+const MAIL_REPLY_TO = process.env.MAIL_REPLY_TO || 'info@alianzacapital.co';
+const OTP_MAILBOX = process.env.NOVEDAD_OTP_EMAIL || 'novedaddesaldo@alianzacapital.co';
+const OTP_TTL_MINUTES = 10;
+
+const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
+const adminClient = SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+  : null;
+
+const MAIL_ERROR = 'No se pudo enviar el correo. Intente nuevamente o revise la configuración del proveedor.';
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-// Template para confirmación de transacción
-const CONFIRMATION_TEMPLATE = {
-  "from": {
-    "email": "notificaciones@alianzacapital.co"
-  },
-  "reply_to": {
-    "email": "info@alianzacapital.co"
-  },
-  "content": [
-    {
-      "type": "text/html", 
-      "value": "<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Notificación de movimiento</title></head><body style=\"margin:0;padding:20px;background-color:#f5f5f5;font-family:Arial,sans-serif\"><div style=\"max-width:700px;margin:0 auto;background-color:#ffffff;padding:40px\"><p style=\"font-size:14px;color:#000;line-height:1.6;margin:20px 0\">Estimado(a) <b>{{nombreUsuario}}</b>,</p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\">Le informamos que se ha registrado un movimiento en su cuenta de Alianza Capital el día <b>{{fecha}}</b>:</p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\"><b>Detalles del movimiento:</b></p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:5px 0\">Tipo de movimiento: <b>{{tipoMovimiento}}</b><br>Valor: <b>{{valorTransaccion}}</b><br>Id transacción: <b>{{idTransaccion}}</b><br>Cuenta: <b>{{lineaAhorro}} {{numeroCuenta}}</b><br>Detalles: <b>{{detallesTransaccion}}</b></p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\">Este movimiento fue realizado de manera interna dentro del ecosistema de Alianza Capital y no requiere acción adicional de su parte.</p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\">Puede consultar el detalle completo de la transacción ingresando a su cuenta en la app o plataforma web.</p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\">Gracias por confiar en Alianza Capital.</p><p style=\"font-size:14px;color:#333;line-height:1.6;margin:20px 0\"><b>Equipo Alianza Capital</b><br>www.alianzacapital.com<br>info@alianzacapital.co</p><p style=\"font-size:13px;color:#666;line-height:1.6;margin:20px 0;font-style:italic\">Este es un mensaje automático, por favor no lo responda directamente.</p></div></body></html>"
-    }
-  ]
-};
+function sendJson(res, status, payload) {
+  res.writeHead(status, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(payload));
+}
 
-// Función para reemplazar placeholders en template
-function replacePlaceholders(template, data) {
-  let html = template.content[0].value;
-  
-  Object.keys(data).forEach(key => {
-    const regex = new RegExp(`{{${key}}}`, 'g');
-    html = html.replace(regex, data[key] || '');
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk.toString();
+      if (body.length > 100_000) {
+        reject(new Error('Cuerpo de la petición demasiado grande'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch {
+        reject(new Error('JSON inválido'));
+      }
+    });
+    req.on('error', reject);
   });
-  
-  return {
-    ...template,
-    content: [{ ...template.content[0], value: html }]
-  };
 }
 
-// Función para generar código OTP
-function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+function getBearerToken(req) {
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Bearer ')) return null;
+  return header.slice('Bearer '.length).trim() || null;
 }
 
-const server = http.createServer((req, res) => {
-  // Configurar CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+async function getSessionUser(token) {
+  if (!token) return null;
+  const { data, error } = await anonClient.auth.getUser(token);
+  if (error) return null;
+  return data.user ?? null;
+}
 
+function userClient(token) {
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+}
+
+async function getActorRole(userId) {
+  if (!adminClient) return null;
+  const { data, error } = await adminClient
+    .from('user_profiles')
+    .select('role')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) return null;
+  return data?.role ?? null;
+}
+
+const STAFF_ROLES = new Set(['crm_superadmin', 'admin', 'supervisor']);
+
+function generateOtp() {
+  return randomInt(0, 1_000_000).toString().padStart(6, '0');
+}
+
+function formatCop(value) {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  }).format(Number(value) || 0);
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function buildOtpEmail({ reference, operationLabel, amount, detail, userName }) {
+  const safeReference = escapeHtml(reference);
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Código OTP novedad de saldo</title></head>
+<body style="margin:0;padding:20px;background-color:#f5f5f5;font-family:Arial,sans-serif">
+  <div style="max-width:700px;margin:0 auto;background-color:#ffffff;padding:40px">
+    <p style="font-size:14px;color:#000;line-height:1.6;margin:20px 0"><b>CODIGO DE VALIDACION DE NOVEDAD DE SALDO</b></p>
+    <p style="font-size:14px;color:#333;line-height:1.6;margin:20px 0">Referencia: <b>${safeReference}</b></p>
+    <p style="font-size:14px;color:#333;line-height:1.6;margin:20px 0">Tipo de operación: <b>${escapeHtml(operationLabel)}</b><br>
+    Valor: <b>${escapeHtml(formatCop(amount))}</b><br>
+    Usuario destino: <b>${escapeHtml(userName)}</b><br>
+    Detalle: <b>${escapeHtml(detail)}</b></p>
+    <div style="text-align:center;margin:30px 0">
+      <span style="font-size:40px;font-weight:bold;letter-spacing:6px">{{OTP}}</span>
+      <p style="margin-top:10px;font-size:14px">Código OTP</p>
+    </div>
+    <p style="font-size:14px;color:#333;line-height:1.6;margin:20px 0">El código vence en ${OTP_TTL_MINUTES} minutos. Es personal y de un solo uso. No lo comparta con nadie.</p>
+    <p style="font-size:14px;color:#333;line-height:1.6;margin:20px 0">Si usted no ha iniciado esta operación, comuníquese de inmediato con nuestro equipo de soporte.</p>
+    <p style="font-size:13px;color:#666;line-height:1.6;margin:20px 0;font-style:italic">Este es un mensaje automático, por favor no lo responda directamente.</p>
+  </div>
+</body>
+</html>`;
+}
+
+function buildConfirmationEmail({ reference, operationLabel, amount, detail, userName }) {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Confirmación de movimiento</title></head>
+<body style="margin:0;padding:20px;background-color:#f5f5f5;font-family:Arial,sans-serif">
+  <div style="max-width:700px;margin:0 auto;background-color:#ffffff;padding:40px">
+    <p style="font-size:14px;color:#000;line-height:1.6;margin:20px 0">Estimado(a) <b>${escapeHtml(userName)}</b>,</p>
+    <p style="font-size:14px;color:#333;line-height:1.6;margin:20px 0">Le informamos que se ha registrado un movimiento en su cuenta de Alianza Capital:</p>
+    <p style="font-size:14px;color:#333;line-height:1.6;margin:5px 0">Tipo de movimiento: <b>${escapeHtml(operationLabel)}</b><br>
+    Valor: <b>${escapeHtml(formatCop(amount))}</b><br>
+    Referencia: <b>${escapeHtml(reference)}</b><br>
+    Detalles: <b>${escapeHtml(detail)}</b></p>
+    <p style="font-size:14px;color:#333;line-height:1.6;margin:20px 0">Este movimiento fue realizado de manera interna dentro del ecosistema de Alianza Capital y no requiere acción adicional de su parte.</p>
+    <p style="font-size:14px;color:#333;line-height:1.6;margin:20px 0"><b>Equipo Alianza Capital</b><br>www.alianzacapital.com<br>info@alianzacapital.co</p>
+    <p style="font-size:13px;color:#666;line-height:1.6;margin:20px 0;font-style:italic">Este es un mensaje automático, por favor no lo responda directamente.</p>
+  </div>
+</body>
+</html>`;
+}
+
+async function sendWithResend({ to, subject, html }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error('Falta RESEND_API_KEY para el proveedor Resend');
+  }
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: MAIL_FROM,
+      to: [to],
+      subject,
+      html,
+      reply_to: MAIL_REPLY_TO,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Resend respondió con estado ${response.status}`);
+  }
+}
+
+async function sendWithSendGrid({ to, subject, html }) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  if (!apiKey) {
+    throw new Error('Falta SENDGRID_API_KEY para el proveedor SendGrid');
+  }
+
+  const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: to }], subject }],
+      from: { email: MAIL_FROM },
+      reply_to: { email: MAIL_REPLY_TO },
+      content: [{ type: 'text/html', value: html }],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`SendGrid respondió con estado ${response.status}`);
+  }
+}
+
+async function sendMail(message) {
+  if (MAIL_PROVIDER === 'resend') {
+    return sendWithResend(message);
+  }
+  if (MAIL_PROVIDER === 'sendgrid') {
+    return sendWithSendGrid(message);
+  }
+  throw new Error('Proveedor de correo no soportado');
+}
+
+function operationLabel(operationType) {
+  return operationType === 'add' ? 'Depósito' : 'Débito';
+}
+
+async function loadNovedad(novedadId) {
+  if (!adminClient) return null;
+  const { data, error } = await adminClient
+    .from('novedades_saldo')
+    .select(
+      'id, reference, status, requested_by, ahorros_id, operation_type, amount, detail, target_user_name, target_user_email',
+    )
+    .eq('id', novedadId)
+    .maybeSingle();
+  if (error) return null;
+  return data;
+}
+
+async function handleSolicitarOtp(req, res) {
+  if (!adminClient) {
+    sendJson(res, 503, {
+      success: false,
+      error: 'El servicio de OTP no está configurado: falta SUPABASE_SERVICE_ROLE_KEY en el servidor.',
+    });
+    return;
+  }
+
+  const token = getBearerToken(req);
+  const user = await getSessionUser(token);
+  if (!user) {
+    sendJson(res, 401, { success: false, error: 'Sesión no válida.' });
+    return;
+  }
+
+  const role = await getActorRole(user.id);
+  if (!STAFF_ROLES.has(role)) {
+    sendJson(res, 403, { success: false, error: 'No autorizado para crear novedades de saldo.' });
+    return;
+  }
+
+  const body = await readBody(req);
+  let novedadId = body.novedadId || null;
+
+  if (!novedadId) {
+    const ahorrosId = body.ahorrosId;
+    const operationType = body.operationType;
+    const amount = Number(body.amount);
+    const detail = typeof body.detail === 'string' ? body.detail.trim() : '';
+
+    if (!ahorrosId || !['add', 'debit'].includes(operationType) || !Number.isFinite(amount) || amount <= 0 || !detail) {
+      sendJson(res, 400, { success: false, error: 'Datos de la novedad incompletos.' });
+      return;
+    }
+
+    const client = userClient(token);
+    const { data, error } = await client.rpc('crear_novedad_saldo', {
+      p_ahorros_id: ahorrosId,
+      p_operation_type: operationType,
+      p_amount: amount,
+      p_detail: detail,
+      p_idempotency_key: body.idempotencyKey || null,
+    });
+
+    if (error) {
+      sendJson(res, 400, { success: false, error: error.message || 'No se pudo crear la novedad.' });
+      return;
+    }
+
+    novedadId = data?.id;
+  }
+
+  const novedad = await loadNovedad(novedadId);
+  if (!novedad) {
+    sendJson(res, 404, { success: false, error: 'Novedad de saldo no encontrada.' });
+    return;
+  }
+
+  if (novedad.requested_by !== user.id) {
+    sendJson(res, 403, { success: false, error: 'La novedad pertenece a otro usuario.' });
+    return;
+  }
+
+  if (!['pending_otp', 'otp_sent', 'expired'].includes(novedad.status)) {
+    sendJson(res, 409, {
+      success: false,
+      error: 'La novedad ya no admite un código nuevo. Verifica su estado.',
+    });
+    return;
+  }
+
+  const otp = generateOtp();
+
+  const { data: otpData, error: otpError } = await adminClient.rpc('registrar_otp_novedad', {
+    p_novedad_id: novedad.id,
+    p_otp: otp,
+    p_ttl_minutes: OTP_TTL_MINUTES,
+  });
+
+  if (otpError) {
+    sendJson(res, 400, { success: false, error: otpError.message || 'No se pudo registrar el OTP.' });
+    return;
+  }
+
+  const html = buildOtpEmail({
+    reference: novedad.reference,
+    operationLabel: operationLabel(novedad.operation_type),
+    amount: novedad.amount,
+    detail: novedad.detail,
+    userName: novedad.target_user_name,
+  }).replace('{{OTP}}', otp);
+
+  try {
+    await sendMail({
+      to: OTP_MAILBOX,
+      subject: `Código OTP novedad de saldo ${novedad.reference}`,
+      html,
+    });
+  } catch {
+    console.error('Error enviando el correo con el OTP de la novedad');
+    sendJson(res, 502, { success: false, error: MAIL_ERROR });
+    return;
+  }
+
+  sendJson(res, 200, {
+    success: true,
+    novedadId: novedad.id,
+    reference: otpData?.reference || novedad.reference,
+    expiresAt: otpData?.expires_at || null,
+  });
+}
+
+async function handleConfirmacion(req, res) {
+  if (!adminClient) {
+    sendJson(res, 503, { success: false, error: 'El servicio de correo no está configurado.' });
+    return;
+  }
+
+  const token = getBearerToken(req);
+  const user = await getSessionUser(token);
+  if (!user) {
+    sendJson(res, 401, { success: false, error: 'Sesión no válida.' });
+    return;
+  }
+
+  const role = await getActorRole(user.id);
+  if (!STAFF_ROLES.has(role)) {
+    sendJson(res, 403, { success: false, error: 'No autorizado para enviar confirmaciones.' });
+    return;
+  }
+
+  const body = await readBody(req);
+  if (!body.novedadId) {
+    sendJson(res, 400, { success: false, error: 'Falta la referencia de la novedad.' });
+    return;
+  }
+
+  const novedad = await loadNovedad(body.novedadId);
+  if (!novedad) {
+    sendJson(res, 404, { success: false, error: 'Novedad de saldo no encontrada.' });
+    return;
+  }
+
+  if (novedad.status !== 'applied') {
+    sendJson(res, 409, { success: false, error: 'La novedad todavía no está aplicada.' });
+    return;
+  }
+
+  if (!novedad.target_user_email) {
+    sendJson(res, 200, { success: false, error: 'La cuenta no tiene correo registrado.' });
+    return;
+  }
+
+  const html = buildConfirmationEmail({
+    reference: novedad.reference,
+    operationLabel: operationLabel(novedad.operation_type),
+    amount: novedad.amount,
+    detail: novedad.detail,
+    userName: novedad.target_user_name,
+  });
+
+  try {
+    await sendMail({
+      to: novedad.target_user_email,
+      subject: `Movimiento por ${formatCop(novedad.amount)} en su cuenta Alianza Capital`,
+      html,
+    });
+  } catch {
+    console.error('Error enviando la confirmación de la novedad');
+    sendJson(res, 502, { success: false, error: MAIL_ERROR });
+    return;
+  }
+
+  sendJson(res, 200, { success: true });
+}
+
+const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
-    res.writeHead(200);
+    res.writeHead(204, CORS_HEADERS);
     res.end();
     return;
   }
 
-  if (req.method === 'POST') {
-    let body = '';
-    
-    req.on('data', chunk => {
-      body += chunk.toString();
-    });
-    
-    req.on('end', () => {
-      try {
-        const requestData = JSON.parse(body);
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { error: 'Método no permitido' });
+    return;
+  }
 
-        if (req.url === '/send-otp') {
-          handleSendOTP(requestData, res);
-        } else if (req.url === '/send-confirmation') {
-          handleSendConfirmation(requestData, res);
-        } else {
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Endpoint no encontrado' }));
-        }
-        
-      } catch (error) {
-        console.error('❌ Error parsing JSON');
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'JSON inválido: ' + error.message }));
-      }
-    });
-  } else {
-    res.writeHead(405, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Método no permitido' }));
+  try {
+    if (req.url === '/novedad-saldo/solicitar-otp') {
+      await handleSolicitarOtp(req, res);
+    } else if (req.url === '/novedad-saldo/confirmacion') {
+      await handleConfirmacion(req, res);
+    } else {
+      sendJson(res, 404, { error: 'Endpoint no encontrado' });
+    }
+  } catch (error) {
+    console.error('Error procesando la petición del servicio de correo');
+    if (!res.headersSent) {
+      sendJson(res, 500, {
+        success: false,
+        error: error?.message === 'JSON inválido' ? 'JSON inválido' : 'Error interno del servicio de correo.',
+      });
+    }
   }
 });
 
-// Manejar envío de código OTP
-function handleSendOTP(data, res) {
-  // Usar el OTP que viene del frontend, no generar uno nuevo
-  const otp = data.otp || generateOTP();
-  
-  // Preparar datos para el template
-  const templateData = {
-    nombreUsuario: data.nombreUsuario || 'Usuario',
-    otp: otp,
-    tipoOperacion: data.tipoOperacion || 'Novedad de saldo',
-    valorTransaccion: data.valorTransaccion || '$0',
-    idTransaccion: data.idTransaccion || 'N/A',
-    nombreCompleto: data.nombreCompleto || data.nombreUsuario,
-    numeroDocumento: data.numeroDocumento || 'N/A',
-    tipoDocumento: data.tipoDocumento || 'CC',
-    lineaAhorro: data.lineaAhorro || 'Línea de ahorro',
-    numeroCuenta: data.numeroCuenta || 'N/A',
-    detallesTransaccion: data.detallesTransaccion || 'Transacción interna'
-  };
-  
-  // Crear email con template personalizado
-  const emailTemplate = replacePlaceholders(OTP_TEMPLATE, templateData);
-  
-  const emailData = {
-    "personalizations": [
-      {
-        "to": [{ "email": data.email }],
-        "subject": `Código OTP transacción interna (${data.nombreUsuario || 'Usuario'})`
-      }
-    ],
-    ...emailTemplate
-  };
-  
-  sendEmailToSendGrid(emailData, res);
-}
-
-// Manejar envío de confirmación
-function handleSendConfirmation(data, res) {
-  const templateData = {
-    nombreUsuario: data.nombreUsuario || 'Usuario',
-    fecha: data.fecha || new Date().toLocaleDateString('es-CO'),
-    tipoMovimiento: data.tipoMovimiento || 'Movimiento interno',
-    valorTransaccion: data.valorTransaccion || '$0',
-    idTransaccion: data.idTransaccion || 'N/A',
-    lineaAhorro: data.lineaAhorro || 'Línea de ahorro',
-    numeroCuenta: data.numeroCuenta || 'N/A',
-    detallesTransaccion: data.detallesTransaccion || 'Transacción completada'
-  };
-  
-  const emailTemplate = replacePlaceholders(CONFIRMATION_TEMPLATE, templateData);
-  
-  const emailData = {
-    "personalizations": [
-      {
-        "to": [{ "email": data.email }],
-        "subject": `${data.tipoMovimiento || 'Movimiento'} por ${data.valorTransaccion || '$0'} en su cuenta Alianza Capital`
-      }
-    ],
-    ...emailTemplate
-  };
-  
-  sendEmailToSendGrid(emailData, res);
-}
-
-// Enviar email a SendGrid
-function sendEmailToSendGrid(emailData, res) {
-  const sendGridData = JSON.stringify(emailData);
-  
-  const options = {
-    hostname: 'api.sendgrid.com',
-    port: 443,
-    path: '/v3/mail/send',
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${SENDGRID_API_KEY}`,
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(sendGridData)
-    }
-  };
-
-  // Hacer la petición a SendGrid
-  const sgReq = https.request(options, (sgRes) => {
-    let responseData = '';
-
-    sgRes.on('data', (chunk) => {
-      responseData += chunk;
-    });
-    
-    sgRes.on('end', () => {
-      const success = sgRes.statusCode >= 200 && sgRes.statusCode < 300;
-      
-      if (!success) {
-        console.error('❌ Error en SendGrid');
-      }
-      
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        success: success,
-        status: sgRes.statusCode,
-        message: success ? 'Email enviado exitosamente' : 'Error enviando email',
-        data: responseData
-      }));
-    });
-  });
-
-  sgReq.on('error', (error) => {
-    console.error('💥 Error de conexión con SendGrid');
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ 
-      success: false, 
-      error: error.message
-    }));
-  });
-
-  sgReq.write(sendGridData);
-  sgReq.end();
-}
-
 server.listen(PORT, () => {
-  process.stdout.write(`Servidor proxy SendGrid escuchando en el puerto ${PORT}\n`);
+  process.stdout.write(`Servicio de correo escuchando en el puerto ${PORT}\n`);
 });

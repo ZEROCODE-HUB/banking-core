@@ -12,7 +12,7 @@
 --   * solo CRM SuperAdmin cambia roles y ve la auditoría;
 --   * las tablas de negocio quedan restringidas al personal.
 --
--- Rollback: supabase/deferred/20261102_03_rls_rollback.sql
+-- Rollback: supabase/deferred/20261102_04_rls_rollback.sql
 -- ============================================================================
 
 begin;

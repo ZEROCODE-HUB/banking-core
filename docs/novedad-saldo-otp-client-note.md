@@ -3,7 +3,7 @@
 **Prepared for:** Alianza Capital
 **Prepared by:** Engineering
 **Date:** 2 November 2026
-**Status:** Awaiting your approval. Implementation is on hold until you respond.
+**Status:** Awaiting your approval on the four points in section 7. The server-side work is prepared but has not been enabled.
 
 ## 1. Why this note exists
 
@@ -85,7 +85,7 @@ To proceed we need four confirmations:
 
 ## 8. Effort and timing
 
-The work is approximately two days, including the server-side verification, the database safeguard and testing. It does not depend on the email provider decision, which remains separate. We have deferred the work until you respond, and we will not change the behaviour of the control in the meantime.
+The work is approximately two days, including the server-side verification, the database safeguard and testing. It does not depend on the email provider decision, which remains separate. The code and the database migration are prepared, but neither has been enabled. We will apply the migration and turn the control on once you confirm the four points in section 7.
 
 ## 9. Summary
 

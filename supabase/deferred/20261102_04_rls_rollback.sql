@@ -1,5 +1,5 @@
 -- ============================================================================
--- Rollback de 20261102_03_rls.sql
+-- Rollback de 20261102_04_rls.sql
 --
 -- Devuelve el acceso permisivo anterior. Solo usar si la aplicación deja de
 -- funcionar por una política y se necesita recuperar el servicio.
