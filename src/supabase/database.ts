@@ -1,4 +1,5 @@
 import { supabase } from './config';
+import type { Role } from '@/auth/roles';
 
 /**
  * Capa de acceso a datos sobre Supabase.
@@ -89,6 +90,7 @@ function normalizeRows(rows: any[]): any[] {
     // user_profiles
     if (r.display_name !== undefined) base.display_name = r.display_name;
     if (r.phone_number !== undefined) base.phone_number = r.phone_number;
+    if (r.created_at !== undefined) base.created_time = r.created_at;
     // asegurar uid final
     base.uid = (r as any).uid ?? r.id;
     return base;
@@ -365,21 +367,126 @@ export const obtenerMovimientosCdat = async (cdatId: string) => {
 };
 
 // Verificaciones / búsquedas
+/**
+ * Cola de verificación: expedientes enviados y pendientes de decisión.
+ *
+ * Con el esquema nuevo el filtro es de flujo (`verification_status`), no de
+ * permisos. Si la migración todavía no se aplicó, se usa el esquema heredado
+ * (`user_type = 'Basic User'`) incluyendo explícitamente los nulos. Nunca se
+ * devuelven todos los perfiles como fallback.
+ */
 export const obtenerUsuariosVerificados = async () => {
   const { data, error } = await supabase
     .from('user_profiles')
-    .select('*')
+    .select('id, email, display_name, nombre, nro_documento, nit, verification_pdf, verification_status, confirmacion_verificado, created_at')
+    .eq('verification_status', 'submitted');
+
+  if (!error) return normalizeRows(data ?? []);
+
+  const { data: legacy, error: legacyError } = await supabase
+    .from('user_profiles')
+    .select('id, email, display_name, nombre, nro_documento, nit, phone_number, verification_pdf, confirmacion_verificado, user_type, created_at')
     .not('verification_pdf', 'is', null)
     .neq('verification_pdf', '')
-    .eq('user_type', 'Basic User')
-    .neq('confirmacion_verificado', 'true');
-  // Supabase schema usa snake_case: ajustamos nombres si difieren
-  if (error) {
-    // fallback sin filtros estrictos
-    const { data: d2 } = await supabase.from('user_profiles').select('*');
-    return normalizeRows(d2 ?? []);
+    // Un perfil sin rol todavía no es personal: se trata como cliente.
+    .or('user_type.eq.Basic User,user_type.is.null')
+    .or('confirmacion_verificado.is.null,confirmacion_verificado.eq.false');
+
+  if (legacyError) {
+    console.error('Error al cargar la cola de verificación');
+    return [];
   }
-  return normalizeRows(data ?? []);
+
+  return normalizeRows(legacy ?? []);
+};
+
+/**
+ * Roles y permisos.
+ *
+ * Las funciones intentan el esquema nuevo (`role`, `role_audit`) y caen al
+ * heredado (`user_type`) mientras la migración no esté aplicada. Así el mismo
+ * binario funciona antes y después del cambio de base de datos.
+ */
+const LEGACY_ROLE_VALUES: Record<Role, string> = {
+  crm_superadmin: 'CRM SuperAdmin',
+  admin: 'Admin',
+  supervisor: 'Supervisor',
+  customer: 'Basic User',
+};
+
+export const obtenerPerfilesRoles = async () => {
+  const modern = await supabase
+    .from('user_profiles')
+    .select('id, email, display_name, nombre, role, verification_status, confirmacion_verificado, created_at')
+    .order('created_at', { ascending: true });
+
+  if (!modern.error) return normalizeRows(modern.data ?? []);
+
+  const legacy = await supabase
+    .from('user_profiles')
+    .select('id, email, display_name, nombre, user_type, confirmacion_verificado, created_at')
+    .order('created_at', { ascending: true });
+
+  if (legacy.error) {
+    console.error('Error al cargar los roles');
+    return [];
+  }
+
+  return normalizeRows(legacy.data ?? []);
+};
+
+export const actualizarRolUsuario = async ({
+  targetId,
+  newRole,
+  previousRole,
+  actorId,
+}: {
+  targetId: string;
+  newRole: Role;
+  previousRole: string | null;
+  actorId?: string | null;
+}) => {
+  const modern = await supabase
+    .from('user_profiles')
+    .update({ role: newRole })
+    .eq('id', targetId)
+    .select('id')
+    .maybeSingle();
+
+  if (modern.error || !modern.data) {
+    // Esquema heredado: todavía no existe la columna `role`.
+    const legacy = await supabase
+      .from('user_profiles')
+      .update({ user_type: LEGACY_ROLE_VALUES[newRole] })
+      .eq('id', targetId)
+      .select('id')
+      .maybeSingle();
+
+    if (legacy.error) throw legacy.error;
+    if (!legacy.data) throw new Error('No se pudo actualizar el rol');
+    return;
+  }
+
+  const { error: auditError } = await supabase.from('role_audit').insert({
+    actor_id: actorId ?? null,
+    target_id: targetId,
+    previous_role: previousRole,
+    new_role: newRole,
+  });
+
+  // La auditoría no debe impedir el cambio, pero sí quedar visible.
+  if (auditError) console.warn('No se pudo registrar la auditoría del rol');
+};
+
+export const obtenerAuditoriaRoles = async () => {
+  const { data, error } = await supabase
+    .from('role_audit')
+    .select('id, actor_id, target_id, previous_role, new_role, created_at')
+    .order('created_at', { ascending: false })
+    .limit(25);
+
+  if (error) return [];
+  return data ?? [];
 };
 
 export const buscarUsuarioPorEmail = async (email: string) => {

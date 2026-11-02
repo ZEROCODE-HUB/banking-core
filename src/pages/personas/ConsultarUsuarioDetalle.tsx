@@ -29,6 +29,7 @@ import { CDATDetailModal } from "@/components/personas/CDATDetailModal";
 import { buscarUsuarioPor, obtenerEmpresaPorRef, obtenerAhorrosPorUsuario, calcularTotalAhorrado, obtenerCdatsPorUsuario, calcularTotalDepositosAhorro, obtenerTransaccionesAhorro, obtenerMovimientosCdat } from "@/supabase/database";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { hasRole, ROLES } from "@/auth/roles";
 import { User, Phone, Mail, Building2, ArrowRight, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Wallet, Eye } from "lucide-react";
 import { supabase } from "@/supabase/config";
 
@@ -230,7 +231,6 @@ export default function ConsultarUsuarioDetalle() {
   const [totalAhorradoCalculado, setTotalAhorradoCalculado] = useState(0);
   const [calculandoTotal, setCalculandoTotal] = useState(false);
   const [selectedYear, setSelectedYear] = useState(2025); // 📅 Estado para selector de año
-  const [otpCode, setOtpCode] = useState(["1", "4", "2", "7", "6", "6"]);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showNovedadModal, setShowNovedadModal] = useState(false);
   const [showPausaModal, setShowPausaModal] = useState(false);
@@ -1006,85 +1006,6 @@ export default function ConsultarUsuarioDetalle() {
           </CardContent>
         </Card>
 
-        {/* Authorization */}
-        <Card className="bg-card border-0 w-[320px] flex-shrink-0">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-medium text-foreground">Autorización</h3>
-              <Select defaultValue="supervisor">
-                <SelectTrigger className="w-[120px] bg-background border-border">
-                  <SelectValue placeholder="Supervisor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="supervisor">Supervisor</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex items-center gap-4 mb-4">
-              {/* Timer Circle */}
-              <div className="relative w-16 h-16">
-                <svg className="w-16 h-16 transform -rotate-90">
-                  <circle
-                    cx="32"
-                    cy="32"
-                    r="28"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                    className="text-muted"
-                  />
-                  <circle
-                    cx="32"
-                    cy="32"
-                    r="28"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                    strokeDasharray={176}
-                    strokeDashoffset={176 * 0.28}
-                    className="text-green-500"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-sm font-medium text-foreground">12:43</span>
-              </div>
-              
-              {/* OTP Input */}
-              <div className="flex-1">
-                <div className="flex gap-1 mb-1">
-                  {otpCode.map((digit, index) => (
-                    <input
-                      key={index}
-                      type="text"
-                      value={digit}
-                      onChange={(e) => {
-                        const newCode = [...otpCode];
-                        newCode[index] = e.target.value.slice(-1);
-                        setOtpCode(newCode);
-                      }}
-                      className="w-8 h-10 text-center border border-border rounded-md bg-background text-foreground text-sm font-medium"
-                      maxLength={1}
-                    />
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  ¿No te llegó ningún código?{" "}
-                  <button className="text-primary font-medium">Reenviar código (59)</button>
-                </p>
-              </div>
-            </div>
-            
-            <div className="mb-4">
-              <p className="text-xs text-muted-foreground mb-1">Clave dinámica</p>
-              <p className="text-2xl font-bold text-foreground">98123</p>
-            </div>
-            
-            <Button variant="outline" className="w-full border-primary text-primary hover:bg-primary/10">
-              Validar código
-            </Button>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Financial Summary */}
@@ -1258,7 +1179,7 @@ export default function ConsultarUsuarioDetalle() {
                   <h4 className="text-base font-medium text-foreground">Línea de {ahorroSeleccionado.SavingsType}</h4>
                   <p className="text-sm text-muted-foreground">Fecha de apertura: {formatDate(ahorroSeleccionado.fechacreacion)}  |  Nro: {ahorroSeleccionado.ea || 9}% E.A</p>
                 </div>
-                {user?.userType === "CRM SuperAdmin" && (
+                {hasRole(user, ROLES.CRM_SUPERADMIN) && (
                   <button 
                     onClick={() => setShowNovedadModal(true)}
                     className="px-3 py-1 rounded-full border border-primary text-primary text-xs font-medium hover:bg-primary/10 transition-colors cursor-pointer"

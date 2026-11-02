@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Mail, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { getUserRole } from "@/auth/roles";
 import { login } from "@/supabase/auth";
 import loginBackground from "@/assets/login-background.png";
 import logoAlianza from "@/assets/logo-alianza.png";
@@ -48,13 +49,17 @@ export default function Auth() {
         .eq('id', user.id)
         .maybeSingle();
       
-      // Si no hay perfil, usar datos de auth directamente (admin sin perfil)
+      // Sin perfil no hay rol: no se concede acceso de personal por defecto.
       const userData = {
         uid: user.id,
         email: user.email!,
         displayName: (profile as any)?.display_name || (profile as any)?.nombre || user.email,
         userData: profile ? { id: profile.id, ...profile } : { id: user.id, email: user.email },
-        userType: (profile as any)?.user_type || (profile as any)?.userType || 'Admin'
+        userType: (profile as any)?.user_type ?? (profile as any)?.userType ?? null,
+        role: getUserRole({
+          role: (profile as any)?.role,
+          userType: (profile as any)?.user_type ?? (profile as any)?.userType,
+        }),
       };
       
       // 3. Actualizar contexto de autenticación

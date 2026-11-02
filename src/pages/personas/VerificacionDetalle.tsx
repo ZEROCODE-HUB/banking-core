@@ -2,10 +2,20 @@ import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check, X } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { actualizarDocumento, obtenerEmpresaPorRef } from "@/supabase/database";
+import { supabase } from "@/supabase/config";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+
+const ESTADO_VERIFICACION: Record<string, string> = {
+  pending: "Sin documento",
+  submitted: "Pendiente de revisión",
+  approved: "Aprobada",
+  rejected: "Rechazada",
+  not_required: "No requiere",
+};
 
 interface DataFieldProps {
   label: string;
@@ -41,11 +51,13 @@ export default function VerificacionDetalle() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [userData, setUserData] = useState(location.state?.userData || null);
   const [empresaData, setEmpresaData] = useState(null);
   const [modoEdicion, setModoEdicion] = useState(false);
   const [displayNameEditado, setDisplayNameEditado] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [procesando, setProcesando] = useState(false);
 
   // Formatear fecha
   const formatDate = (dateValue) => {
@@ -148,6 +160,71 @@ export default function VerificacionDetalle() {
     }
   };
 
+  // Aprobar o rechazar el expediente. Es la salida real de la cola: el
+  // registro deja de estar en `submitted` y guarda quién decidió y cuándo.
+  const resolverVerificacion = async (decision: "approved" | "rejected") => {
+    if (!userData) return;
+    const documentId = userData.docId || userData.id;
+    if (!documentId) {
+      toast({
+        title: "Error",
+        description: "No se pudo identificar el expediente",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProcesando(true);
+    const moderno = await supabase
+      .from("user_profiles")
+      .update({
+        verification_status: decision,
+        verification_reviewed_by: user?.uid ?? null,
+        verification_reviewed_at: new Date().toISOString(),
+        confirmacion_verificado: decision === "approved",
+      })
+      .eq("id", documentId)
+      .select("id")
+      .maybeSingle();
+
+    let guardado = !moderno.error && Boolean(moderno.data);
+
+    // Antes de aplicar la migración solo existe `confirmacion_verificado`.
+    if (!guardado) {
+      const heredado = await supabase
+        .from("user_profiles")
+        .update({ confirmacion_verificado: decision === "approved" })
+        .eq("id", documentId)
+        .select("id")
+        .maybeSingle();
+      guardado = !heredado.error && Boolean(heredado.data);
+    }
+    setProcesando(false);
+
+    if (!guardado) {
+      console.error("Error al resolver la verificación");
+      toast({
+        title: "Error",
+        description: "No se pudo guardar la decisión",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: decision === "approved" ? "Verificación aprobada" : "Verificación rechazada",
+      description:
+        decision === "approved"
+          ? "El expediente fue aprobado y salió de la cola."
+          : "El expediente fue rechazado y salió de la cola.",
+    });
+    navigate("/personas/verificaciones");
+  };
+
+  const estadoVerificacion =
+    userData?.verification_status ??
+    (userData?.confirmacion_verificado === true ? "approved" : "submitted");
+
   // Si no hay userData, redirigir
   useEffect(() => {
     if (!userData) {
@@ -191,7 +268,12 @@ export default function VerificacionDetalle() {
         {/* Sección Documento */}
         <Card className="bg-card border-border">
           <CardContent className="p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Documento</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground">Documento</h2>
+              <span className="text-xs font-medium rounded-full bg-muted px-3 py-1 text-muted-foreground">
+                {ESTADO_VERIFICACION[estadoVerificacion] ?? "Pendiente de revisión"}
+              </span>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               {/* Frontal */}
@@ -263,6 +345,25 @@ export default function VerificacionDetalle() {
                 onClick={() => navigate('/personas/verificaciones')}
               >
                 Regresar
+              </Button>
+
+              <Button
+                variant="outline"
+                className="min-w-[130px] border-destructive/40 text-destructive hover:bg-destructive/10"
+                onClick={() => resolverVerificacion("rejected")}
+                disabled={procesando}
+              >
+                <X size={16} className="mr-2" />
+                Rechazar
+              </Button>
+
+              <Button
+                className="min-w-[130px] bg-primary hover:bg-primary/90"
+                onClick={() => resolverVerificacion("approved")}
+                disabled={procesando}
+              >
+                <Check size={16} className="mr-2" />
+                {procesando ? "Guardando..." : "Aprobar"}
               </Button>
               
               {!modoEdicion ? (

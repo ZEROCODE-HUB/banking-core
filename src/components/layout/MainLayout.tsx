@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { HomeMenu } from "./HomeMenu";
 import { useAuth } from "@/contexts/AuthContext";
+import { hasRole, ROLES } from "@/auth/roles";
 import { Users, CreditCard, BarChart3, Wallet } from "lucide-react";
 import fondosIcon from "@/assets/menu/fondos.png";
 import { buildHomeNavigation } from "@/config/navigation";
@@ -85,7 +86,12 @@ export function MainLayout({ children, sidebarType, pageTitle }: MainLayoutProps
           icon: <Users size={20} />,
           children: [
             { label: "Consultar usuarios", href: "/personas/consultar" },
-            ...(user?.userType === "CRM SuperAdmin" ? [{ label: "Verificaciones", href: "/personas/verificaciones" }] : []),
+            ...(hasRole(user, ROLES.CRM_SUPERADMIN)
+              ? [
+                  { label: "Verificaciones", href: "/personas/verificaciones" },
+                  { label: "Roles y permisos", href: "/personas/roles" },
+                ]
+              : []),
           ],
         },
       ],

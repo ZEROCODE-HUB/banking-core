@@ -18,7 +18,7 @@ interface ProfileCardProps {
 
 /**
  * Bloque de identidad del usuario con la misma información en todas las
- * superficies: foto (o iniciales), nombre y rol real de `user_type`.
+ * superficies: foto (o iniciales), nombre y rol real del perfil.
  */
 export function ProfileCard({
   user,

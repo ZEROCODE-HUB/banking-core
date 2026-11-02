@@ -99,6 +99,7 @@ function VerificationCard({ name, documentNumber, registrationDate, userData }: 
       
       // Estado
       confirmacion_verificado: userData?.confirmacion_verificado === true,
+      verification_status: userData?.verification_status || null,
       user_type: userData?.user_type || null
     };
     
@@ -318,9 +319,9 @@ export default function Verificaciones() {
           {/* Recientes */}
           <div className="mt-8">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Usuarios Verificados</h2>
+              <h2 className="text-lg font-semibold text-foreground">Pendientes de verificación</h2>
               <span className="text-sm text-muted-foreground">
-                {usuariosVerificados.length} usuario{usuariosVerificados.length !== 1 ? 's' : ''} encontrado{usuariosVerificados.length !== 1 ? 's' : ''}
+                {usuariosVerificados.length} expediente{usuariosVerificados.length !== 1 ? 's' : ''}
               </span>
             </div>
             
@@ -338,7 +339,7 @@ export default function Verificaciones() {
             
             {usuariosVerificados.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                No hay usuarios verificados
+                No hay expedientes pendientes de verificación
               </div>
             )}
             

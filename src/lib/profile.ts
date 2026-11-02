@@ -1,3 +1,5 @@
+import { getRoleLabel } from "@/auth/roles";
+
 /**
  * Utilidades de perfil compartidas por la tarjeta y el diálogo de perfil.
  *
@@ -11,6 +13,7 @@ export interface ProfileSource {
   displayName?: string;
   display_name?: string;
   userType?: string;
+  role?: unknown;
   phone_number?: string;
   empresa?: unknown;
   userData?: Record<string, any> | null;
@@ -65,7 +68,12 @@ export const getProfilePhoto = (user: ProfileSource | null): string | undefined 
 };
 
 export const getProfileRole = (user: ProfileSource | null): string =>
-  asProfileText(user?.userType ?? user?.userData?.user_type);
+  getRoleLabel(
+    user?.role ??
+      user?.userType ??
+      user?.userData?.role ??
+      user?.userData?.user_type,
+  );
 
 export const getProfileEmail = (user: ProfileSource | null): string =>
   asProfileText(user?.email ?? user?.userData?.email);

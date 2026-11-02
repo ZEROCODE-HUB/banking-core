@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { hasRole, type Role } from '@/auth/roles';
 import { Navigate, useLocation } from 'react-router-dom';
 
 interface ProtectedRouteProps {
@@ -21,6 +22,38 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   if (!user) {
     // Redirigir al login y guardar la ubicación actual
     return <Navigate to="/auth" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
+};
+
+interface RequireRoleProps {
+  roles: Role[];
+  children: React.ReactNode;
+}
+
+/**
+ * Guard de rol. La autenticación sola no basta para rutas de administración:
+ * un cliente con sesión válida no debe poder abrirlas escribiendo la URL.
+ */
+export const RequireRole: React.FC<RequireRoleProps> = ({ roles, children }) => {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" state={{ from: location }} replace />;
+  }
+
+  if (!hasRole(user, ...roles)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { observarAuth } from '@/supabase/auth';
 import { supabase } from '@/supabase/config';
+import { getUserRole, type Role } from '@/auth/roles';
 
 interface User {
   uid: string;
@@ -9,6 +10,7 @@ interface User {
   display_name?: string;
   userData?: any;
   userType?: string;
+  role?: Role | null;
   phone_number?: string;
   id?: string;
   empresa?: any;
@@ -58,6 +60,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           displayName: (profile as any).display_name ?? (profile as any).nombre ?? sbUser.email,
           display_name: (profile as any).display_name ?? (profile as any).nombre ?? sbUser.email,
           userType: (profile as any).user_type ?? (profile as any).userType,
+          role: getUserRole({
+            role: (profile as any).role,
+            userType: (profile as any).user_type ?? (profile as any).userType,
+          }),
           phone_number: (profile as any).phone_number,
           id: (profile as any).nit ?? (profile as any).id,
           empresa: (profile as any).empresa,
@@ -66,21 +72,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         return completeUserData;
       } else {
-        console.warn("⚠️ Perfil no encontrado en user_profiles");
+        console.warn("Perfil no encontrado en user_profiles");
         return {
           uid: sbUser.id,
           email: sbUser.email!,
           displayName: sbUser.email,
           display_name: sbUser.email,
+          role: null,
         };
       }
     } catch (error) {
-      console.error("❌ Error");
+      console.error("Error al cargar el perfil");
       return {
         uid: sbUser.id,
         email: sbUser.email!,
         displayName: sbUser.email,
         display_name: sbUser.email,
+        role: null,
       };
     }
   };
@@ -102,7 +110,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (userData: User) => {
-    if (!userData.display_name && userData.uid) {
+    // El rol siempre se resuelve desde el perfil, tanto en login nuevo como al
+    // restaurar la sesión. Así un cambio de rol no depende de recargar la página.
+    if (userData.uid) {
       try {
         const { data: profile } = await supabase
           .from('user_profiles')
@@ -116,6 +126,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             display_name: (profile as any).display_name ?? (profile as any).nombre,
             displayName: (profile as any).display_name ?? (profile as any).nombre,
             userType: (profile as any).user_type ?? (profile as any).userType,
+            role: getUserRole({
+              role: (profile as any).role,
+              userType: (profile as any).user_type ?? (profile as any).userType,
+            }),
             userData: profile,
           };
         }

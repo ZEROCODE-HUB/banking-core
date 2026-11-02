@@ -5,7 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ProtectedRoute, PublicRoute } from "@/components/ProtectedRoute";
+import { ProtectedRoute, PublicRoute, RequireRole } from "@/components/ProtectedRoute";
+import { ROLES } from "@/auth/roles";
 
 // Cada página se carga solo cuando se visita. Las librerías pesadas (Excel,
 // gráficas) quedan en el trozo de su página y no en la carga inicial.
@@ -15,6 +16,7 @@ const ConsultarUsuarios = lazy(() => import("./pages/personas/ConsultarUsuarios"
 const ConsultarUsuarioDetalle = lazy(() => import("./pages/personas/ConsultarUsuarioDetalle"));
 const Verificaciones = lazy(() => import("./pages/personas/Verificaciones"));
 const VerificacionDetalle = lazy(() => import("./pages/personas/VerificacionDetalle"));
+const GestionRoles = lazy(() => import("./pages/personas/GestionRoles"));
 const SolicitudesFixed = lazy(() => import("./pages/personas/SolicitudesFixed"));
 const FondosIndependientes = lazy(() => import("./pages/fondos/FondosIndependientes"));
 const ContabilidadAhorro = lazy(() => import("./pages/contabilidad/ContabilidadAhorro"));
@@ -71,15 +73,21 @@ const App = () => (
               } />
 
               <Route path="/personas/verificaciones" element={
-                <ProtectedRoute>
+                <RequireRole roles={[ROLES.CRM_SUPERADMIN]}>
                   <Verificaciones />
-                </ProtectedRoute>
+                </RequireRole>
               } />
 
               <Route path="/personas/verificaciones/detalle" element={
-                <ProtectedRoute>
+                <RequireRole roles={[ROLES.CRM_SUPERADMIN]}>
                   <VerificacionDetalle />
-                </ProtectedRoute>
+                </RequireRole>
+              } />
+
+              <Route path="/personas/roles" element={
+                <RequireRole roles={[ROLES.CRM_SUPERADMIN]}>
+                  <GestionRoles />
+                </RequireRole>
               } />
 
               <Route path="/personas/solicitudes" element={
