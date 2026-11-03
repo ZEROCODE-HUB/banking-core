@@ -74,7 +74,17 @@ export function NovedadSaldoModal({
   };
 
   const getErrorMessage = (error: unknown, fallback: string): string => {
-    return error instanceof Error && error.message ? error.message : fallback;
+    if (error instanceof Error && error.message) return error.message;
+
+    // Los errores de Supabase/PostgREST son objetos planos, no instancias de
+    // Error. Sin este caso se perdía el mensaje del RPC (por ejemplo, saldo
+    // insuficiente) y la UI mostraba el texto genérico.
+    if (typeof error === 'object' && error !== null) {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === 'string' && message.trim()) return message;
+    }
+
+    return fallback;
   };
 
   const resetModal = () => {
