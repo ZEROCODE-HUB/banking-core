@@ -37,6 +37,25 @@ const adminClient = SUPABASE_SERVICE_ROLE_KEY
 
 const MAIL_ERROR = 'No se pudo enviar el correo. Intente nuevamente o revise la configuración del proveedor.';
 
+function mailErrorMessage(error) {
+  const status = error?.providerStatus;
+  const providerMessage = String(error?.providerMessage || '');
+
+  if (status === 401) {
+    return 'La API key del proveedor de correo no es válida.';
+  }
+  if (status === 429) {
+    return 'El proveedor de correo alcanzó el límite de envíos. Intenta más tarde.';
+  }
+  if (status === 403 && /domain is not verified/i.test(providerMessage)) {
+    return 'El dominio del remitente no está verificado en Resend. Verifica alianzacapital.co o usa onboarding@resend.dev en desarrollo.';
+  }
+  if (status === 403 && /testing emails to your own email address/i.test(providerMessage)) {
+    return 'Resend está en modo de prueba y solo puede enviar al correo del propietario de la cuenta. Verifica el dominio o usa ese correo como destinatario.';
+  }
+  return MAIL_ERROR;
+}
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -192,7 +211,17 @@ async function sendWithResend({ to, cc, subject, html }) {
   });
 
   if (!response.ok) {
-    throw new Error(`Resend respondió con estado ${response.status}`);
+    const body = await response.text();
+    let providerMessage = '';
+    try {
+      providerMessage = JSON.parse(body)?.message || '';
+    } catch {
+      providerMessage = '';
+    }
+    const error = new Error(`Resend respondió con estado ${response.status}`);
+    error.providerStatus = response.status;
+    error.providerMessage = providerMessage;
+    throw error;
   }
 }
 
@@ -223,7 +252,17 @@ async function sendWithSendGrid({ to, cc, subject, html }) {
   });
 
   if (!response.ok) {
-    throw new Error(`SendGrid respondió con estado ${response.status}`);
+    const body = await response.text();
+    let providerMessage = '';
+    try {
+      providerMessage = JSON.parse(body)?.errors?.[0]?.message || JSON.parse(body)?.message || '';
+    } catch {
+      providerMessage = '';
+    }
+    const error = new Error(`SendGrid respondió con estado ${response.status}`);
+    error.providerStatus = response.status;
+    error.providerMessage = providerMessage;
+    throw error;
   }
 }
 
@@ -354,9 +393,9 @@ async function handleSolicitarOtp(req, res) {
       subject: `Código OTP novedad de saldo ${novedad.reference}`,
       html,
     });
-  } catch {
-    console.error('Error enviando el correo con el OTP de la novedad');
-    sendJson(res, 502, { success: false, error: MAIL_ERROR });
+  } catch (error) {
+    console.error(`Error enviando el correo con el OTP de la novedad (estado ${error?.providerStatus ?? 'desconocido'})`);
+    sendJson(res, 502, { success: false, error: mailErrorMessage(error) });
     return;
   }
 
@@ -423,9 +462,9 @@ async function handleConfirmacion(req, res) {
       subject: `Movimiento por ${formatCop(novedad.amount)} en su cuenta Alianza Capital`,
       html,
     });
-  } catch {
-    console.error('Error enviando la confirmación de la novedad');
-    sendJson(res, 502, { success: false, error: MAIL_ERROR });
+  } catch (error) {
+    console.error(`Error enviando la confirmación de la novedad (estado ${error?.providerStatus ?? 'desconocido'})`);
+    sendJson(res, 502, { success: false, error: mailErrorMessage(error) });
     return;
   }
 

@@ -58,6 +58,25 @@ movimiento de saldo y la transacción en una sola operación de base de datos.
 Sin el paso 1 el frontend no puede crear ni aplicar novedades. Sin el paso 2 el
 proxy responde 503 al pedir el OTP y no envía nada.
 
+## Diagnóstico de correo
+
+El proxy devuelve un mensaje específico para los errores más comunes:
+
+- **Dominio no verificado en Resend:** el remitente debe usar un dominio
+  verificado en Resend. Para desarrollo, sin dominio, usa
+  `MAIL_FROM=onboarding@resend.dev` y envía solo al correo del propietario de la
+  cuenta Resend.
+- **Modo de prueba de Resend:** solo permite enviar al correo del propietario.
+  Configura `NOVEDAD_OTP_EMAIL` con ese correo y deja `NOVEDAD_OTP_CC` vacío
+  mientras no haya un dominio verificado.
+- **API key inválida o límite de envíos:** se informa en la respuesta del proxy.
+- **Error del correo de confirmación después de aplicar:** la novedad y el saldo
+  ya quedaron aplicados; el fallo solo se registra y no revierte el movimiento.
+
+Para producción, verifica `alianzacapital.co` en Resend y vuelve a usar el buzón
+de operaciones y la copia configurada. El modo de prueba de Resend no sirve para
+entregar al buzón interno si es una dirección distinta a la del propietario.
+
 ## Pendientes de negocio
 
 - Confirmar el buzón de operaciones y que el operador que inicia no pueda abrirlo.
