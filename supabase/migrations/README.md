@@ -19,7 +19,8 @@ sesión que no sea CRM SuperAdmin cambie roles desde la API.
 2. `20261102_02_role_guard.sql` — trigger que protege los cambios de rol.
 3. `20261102_03_novedades_saldo.sql` — solicitudes, OTP y aplicación atómica.
 4. `20261102_04_novedad_roles.sql` — solo superadmin/admin crean novedades.
-5. **No aplicar** `deferred/20261102_05_rls.sql` en esta fase.
+5. `20261102_05_withdrawal_reject.sql` — rechazo atómico de retiros de ahorro.
+6. **No aplicar** `deferred/20261102_06_rls.sql` en esta fase.
 
 La segunda migración depende de la primera y las siguientes de las anteriores.
 Todas están dentro de una transacción y son seguras de ejecutar en ese orden.
@@ -28,8 +29,8 @@ Todas están dentro de una transacción y son seguras de ejecutar en ese orden.
 
 En el panel de Supabase, abrir **SQL Editor**, pegar el contenido de
 `20261102_01_roles.sql`, ejecutarlo, y repetir con
-`20261102_02_role_guard.sql`, `20261102_03_novedades_saldo.sql` y
-`20261102_04_novedad_roles.sql`.
+`20261102_02_role_guard.sql`, `20261102_03_novedades_saldo.sql`,
+`20261102_04_novedad_roles.sql` y `20261102_05_withdrawal_reject.sql`.
 
 Con la CLI de Supabase, desde la raíz del repositorio:
 
@@ -37,8 +38,8 @@ Con la CLI de Supabase, desde la raíz del repositorio:
 supabase db push
 ```
 
-La CLI solo toma `supabase/migrations/`, así que aplicará 01, 02, 03 y 04 y
-dejará `supabase/deferred/05` fuera.
+La CLI solo toma `supabase/migrations/`, así que aplicará 01, 02, 03, 04 y 05 y
+dejará `supabase/deferred/06` fuera.
 
 No hace falta la `service_role` key en el frontend. La aplicación sigue usando la
 clave anónima con la sesión del usuario. La `service_role` key solo la usa el
@@ -142,6 +143,28 @@ Resultado esperado: la guardia de rol debe decir solo `crm_superadmin` y
 `No autorizado para crear novedades de saldo`; un `admin` debe poder iniciar
 la solicitud y ver la pantalla de OTP.
 
+## Verificación después de `05`
+
+```sql
+select proname
+from pg_proc
+where pronamespace = 'public'::regnamespace
+  and proname = 'rechazar_retiro';
+```
+
+Prueba funcional con un retiro en estado `PENDING`:
+
+| Caso | Resultado esperado |
+|---|---|
+| Staff rechaza el retiro | estado `REJECTED` y `monto_total` aumenta una sola vez |
+| Se repite el mismo rechazo | devuelve `already_rejected: true` y no vuelve a abonar |
+| Se intenta rechazar un retiro ya `APPROVED` | bloqueado |
+| Un cliente intenta ejecutar el RPC | bloqueado por `is_staff()` |
+| Falla la actualización de la cuenta | la transacción completa revierte, no queda estado ni saldo a medias |
+
+El rechazo ya no modifica `total_deposits`, `total_saving_value` ni
+`last_deposit`: una devolución de saldo no es un depósito nuevo.
+
 Variables necesarias en el proxy de correo (`.env`, sin prefijo `VITE_`):
 
 | Variable | Uso |
@@ -174,11 +197,13 @@ protege la columna `role`; no protege saldos, transacciones, vehículos ni
 comentarios. Los guards de ruta y los botones ocultos son presentación, no un
 límite de seguridad.
 
-La migración diferida `deferred/20261102_05_rls.sql` cierra ese hueco. Antes de
+La migración diferida `deferred/20261102_06_rls.sql` cierra ese hueco. Antes de
 aplicarla hay que probarla en staging y revisar la matriz de roles.
 
 ## Rollback
 
+- `20261102_05_withdrawal_reject_rollback.sql` elimina la función
+  `rechazar_retiro`. No revierte retiros ya rechazados ni saldos ya devueltos.
 - `20261102_04_novedad_roles_rollback.sql` devuelve a `supervisor` la capacidad
   de crear novedades.
 - `20261102_03_novedades_saldo_rollback.sql` elimina las funciones y las tablas
@@ -188,9 +213,9 @@ aplicarla hay que probarla en staging y revisar la matriz de roles.
 - `20261102_01_roles_rollback.sql` devuelve `role` a `user_type` y elimina
   `verification_status` y `role_audit`.
 
-Ejecutar el rollback de 04, después el de 03, después el de 02 y al final el de
-01. No ejecutar el rollback de 02 si la migración de RLS ya está aplicada: esa
-migración reutiliza los helpers.
+Ejecutar el rollback de 05, después el de 04, el de 03, el de 02 y al final el
+de 01. No ejecutar el rollback de 02 si la migración de RLS ya está aplicada:
+esa migración reutiliza los helpers.
 
 ## Notas de diseño
 
@@ -216,3 +241,6 @@ migración reutiliza los helpers.
 - No se permite dejar el saldo en negativo. Si el negocio aprueba sobregiros,
   el único cambio necesario es la comparación `v_balance_after < 0` dentro de
   `aplicar_novedad_saldo`.
+- `rechazar_retiro` bloquea la transacción y la cuenta y hace la devolución y el
+  cambio de estado en una sola transacción. Un segundo intento devuelve
+  `already_rejected` sin volver a abonar. No altera los acumulados de depósitos.

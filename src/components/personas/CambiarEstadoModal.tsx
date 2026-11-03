@@ -55,6 +55,15 @@ interface CambiarEstadoModalProps {
 type ModalStep = "seleccion" | "completado" | "rechazado" | "confirmacion";
 type NuevoEstado = "Completado" | "Rechazado" | null;
 
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object' && error !== null) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+};
+
 export function CambiarEstadoModal({ open, onOpenChange, solicitud, onEstadoChanged }: CambiarEstadoModalProps) {
   const [step, setStep] = useState<ModalStep>("seleccion");
   const [nuevoEstado, setNuevoEstado] = useState<NuevoEstado>(null);
@@ -161,7 +170,7 @@ export function CambiarEstadoModal({ open, onOpenChange, solicitud, onEstadoChan
       console.error("Error al actualizar estado");
       toast({
         title: "Error",
-        description: (error as any)?.message || "No se pudo actualizar el estado de la transacción",
+        description: getErrorMessage(error, "No se pudo actualizar el estado de la transacción"),
         variant: "destructive",
       });
     } finally {

@@ -317,25 +317,13 @@ export const aplicarNovedadSaldo = async (novedadId: string) => {
   return data;
 };
 
-export const actualizarSaldoCuentaAhorro = async (ahorrosId: string, monto: number, operationType: 'add' | 'remove') => {
-  // Actualización de saldo: select + update
-  const { data: current, error: fetchErr } = await supabase.from('ahorros').select('monto_total, total_saving_value, total_deposits').eq('id', ahorrosId).single();
-  if (fetchErr) throw fetchErr;
-  const delta = operationType === 'add' ? monto : -monto;
-  const updates: any = {
-    monto_total: Number(current.monto_total ?? 0) + delta,
-    updated_at: new Date().toISOString(),
-  };
-  if (operationType === 'add') {
-    updates.total_saving_value = Number((current as any).total_saving_value ?? 0) + monto;
-    updates.total_deposits = Number((current as any).total_deposits ?? 0) + monto;
-    updates.last_deposit = new Date().toISOString();
-  } else {
-    updates.last_withdrawal = new Date().toISOString();
-  }
-  const { error } = await supabase.from('ahorros').update(updates).eq('id', ahorrosId);
+export const rechazarRetiro = async (transactionId: string, observation?: string) => {
+  const { data, error } = await supabase.rpc('rechazar_retiro', {
+    p_transaction_id: transactionId,
+    p_observation: observation ?? null,
+  });
   if (error) throw error;
-  return true;
+  return data;
 };
 
 export const obtenerMovimientosCdat = async (cdatId: string) => {
@@ -526,12 +514,22 @@ export const actualizarObservacionTransaccion = async (transactionId: string, ob
 };
 
 export const actualizarEstadoTransaccion = async (transactionId: string, nuevoEstado: string, datosAdicionales: Record<string, any> = {}) => {
-  const { data: current } = await supabase.from('transactions').select('*').eq('id', transactionId).single();
+  const { data: current, error: currentError } = await supabase
+    .from('transactions')
+    .select('transaction_type')
+    .eq('id', transactionId)
+    .maybeSingle();
+
+  if (currentError) throw currentError;
   if (!current) throw new Error('Transacción no encontrada');
 
-  // Si es retiro PENDING -> REJECTED devolver saldo
-  if (current.transaction_type === 'Withdrawal' && current.status === 'PENDING' && nuevoEstado === 'REJECTED' && (current as any).ahorros_id) {
-    await actualizarSaldoCuentaAhorro((current as any).ahorros_id, Number(current.amount), 'add');
+  // Un rechazo de retiro debe devolver el saldo y cambiar el estado en una sola
+  // transacción. El RPC bloquea la fila e ignora reintentos ya rechazados.
+  if (nuevoEstado === 'REJECTED' && current.transaction_type === 'Withdrawal') {
+    const observation = typeof datosAdicionales.observation === 'string'
+      ? datosAdicionales.observation
+      : undefined;
+    return rechazarRetiro(transactionId, observation);
   }
 
   const payload: any = { status: nuevoEstado, last_updated: new Date().toISOString(), updated_at: new Date().toISOString(), ...datosAdicionales };
