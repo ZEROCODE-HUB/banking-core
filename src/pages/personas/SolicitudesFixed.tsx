@@ -699,12 +699,12 @@ export default function Solicitudes() {
                         <TableHead>Fecha de solicitud</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead>Tiempo</TableHead>
-                        <TableHead>Acciones</TableHead>
+                        <TableHead className="sticky right-0 bg-card">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {paginatedData.map((item, index) => (
-                        <TableRow key={item.docId || index}>
+                        <TableRow key={item.docId || index} className="group">
                           <TableCell className="font-medium">{item.id}</TableCell>
                           <TableCell>{item.nombre}</TableCell>
                           <TableCell>{item.producto || "-"}</TableCell>
@@ -723,29 +723,32 @@ export default function Solicitudes() {
                           <TableCell>
                             <span className="text-sm">{item.tiempo}</span>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="sticky right-0 bg-card group-hover:bg-muted/50">
                             <div className="flex items-center gap-1">
                               {item.estado === "Pendiente de retiro" ? (
                                 <button
                                   onClick={() => handleEstadoChange(item)}
-                                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/70"
-                                  title="Cambiar estado"
+                                  className="h-8 px-3 rounded-full bg-primary/10 text-primary text-xs font-medium flex items-center gap-1 hover:bg-primary/20"
+                                  title="Cambiar estado del retiro"
                                 >
-                                  <Settings className="h-4 w-4 text-muted-foreground" />
+                                  <Settings className="h-3.5 w-3.5" />
+                                  Gestionar
                                 </button>
                               ) : (
                                 <button
                                   onClick={() => handleVerDetalle(item)}
-                                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/70"
+                                  className="h-8 px-3 rounded-full bg-muted text-xs font-medium flex items-center gap-1 hover:bg-muted/70"
                                   title="Ver detalle"
                                 >
-                                  <Eye className="h-4 w-4 text-muted-foreground" />
+                                  <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                                  Ver
                                 </button>
                               )}
                               <button
                                 onClick={() => handleObservaciones(item)}
                                 className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/70"
                                 title="Observaciones"
+                                aria-label="Observaciones"
                               >
                                 <MessageCircle className="h-4 w-4 text-muted-foreground" />
                               </button>
@@ -756,7 +759,11 @@ export default function Solicitudes() {
                       {paginatedData.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
-                            {loadingRetiroAhorros ? "Cargando..." : "No hay registros para mostrar"}
+                            {loadingRetiroAhorros
+                              ? "Cargando..."
+                              : statusFilter !== "ALL"
+                                ? "No hay retiros con el filtro seleccionado. Prueba con Todos."
+                                : "No hay registros para mostrar"}
                           </TableCell>
                         </TableRow>
                       )}
