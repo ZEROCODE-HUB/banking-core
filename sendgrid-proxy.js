@@ -19,6 +19,10 @@ const MAIL_PROVIDER = (process.env.MAIL_PROVIDER || (process.env.RESEND_API_KEY 
 const MAIL_FROM = process.env.MAIL_FROM || 'notificaciones@alianzacapital.co';
 const MAIL_REPLY_TO = process.env.MAIL_REPLY_TO || 'info@alianzacapital.co';
 const OTP_MAILBOX = process.env.NOVEDAD_OTP_EMAIL || 'novedaddesaldo@alianzacapital.co';
+const OTP_CC = (process.env.NOVEDAD_OTP_CC || '')
+  .split(',')
+  .map((email) => email.trim())
+  .filter(Boolean);
 const OTP_TTL_MINUTES = 10;
 
 const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -164,7 +168,7 @@ function buildConfirmationEmail({ reference, operationLabel, amount, detail, use
 </html>`;
 }
 
-async function sendWithResend({ to, subject, html }) {
+async function sendWithResend({ to, cc, subject, html }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     throw new Error('Falta RESEND_API_KEY para el proveedor Resend');
@@ -179,6 +183,7 @@ async function sendWithResend({ to, subject, html }) {
     body: JSON.stringify({
       from: MAIL_FROM,
       to: [to],
+      cc: cc?.length ? cc : undefined,
       subject,
       html,
       reply_to: MAIL_REPLY_TO,
@@ -190,7 +195,7 @@ async function sendWithResend({ to, subject, html }) {
   }
 }
 
-async function sendWithSendGrid({ to, subject, html }) {
+async function sendWithSendGrid({ to, cc, subject, html }) {
   const apiKey = process.env.SENDGRID_API_KEY;
   if (!apiKey) {
     throw new Error('Falta SENDGRID_API_KEY para el proveedor SendGrid');
@@ -203,7 +208,13 @@ async function sendWithSendGrid({ to, subject, html }) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: to }], subject }],
+      personalizations: [
+        {
+          to: [{ email: to }],
+          cc: cc?.length ? cc.map((email) => ({ email })) : undefined,
+          subject,
+        },
+      ],
       from: { email: MAIL_FROM },
       reply_to: { email: MAIL_REPLY_TO },
       content: [{ type: 'text/html', value: html }],
@@ -338,6 +349,7 @@ async function handleSolicitarOtp(req, res) {
   try {
     await sendMail({
       to: OTP_MAILBOX,
+      cc: OTP_CC,
       subject: `Código OTP novedad de saldo ${novedad.reference}`,
       html,
     });

@@ -51,6 +51,7 @@ movimiento de saldo y la transacción en una sola operación de base de datos.
    - `MAIL_PROVIDER` (`resend` o `sendgrid`)
    - la API key del proveedor
    - `NOVEDAD_OTP_EMAIL`
+   - `NOVEDAD_OTP_CC` si el OTP debe llevar copia a otra cuenta
 3. Reiniciar el proxy.
 4. Desplegar el frontend.
 

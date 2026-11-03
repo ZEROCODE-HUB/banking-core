@@ -136,6 +136,7 @@ Variables necesarias en el proxy de correo (`.env`, sin prefijo `VITE_`):
 | `MAIL_PROVIDER` | `resend` (desarrollo) o `sendgrid` |
 | `RESEND_API_KEY` / `SENDGRID_API_KEY` | credencial del proveedor elegido |
 | `NOVEDAD_OTP_EMAIL` | buzón de operaciones que recibe el código |
+| `NOVEDAD_OTP_CC` | copias opcionales del código, separadas por coma |
 
 Prueba funcional:
 
