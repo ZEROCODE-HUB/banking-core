@@ -90,7 +90,9 @@ export function NovedadSaldoModal({
   };
 
   const handleClose = () => {
-    if (isProcessing) return;
+    // El bloqueo existe para no cerrar mientras se aplica la novedad. Una vez
+    // que el paso es "success", la operación ya terminó y siempre se puede cerrar.
+    if (isProcessing && step !== "success") return;
     resetModal();
     onOpenChange(false);
   };
@@ -273,6 +275,9 @@ export function NovedadSaldoModal({
 
       setNovedadReference(result.reference || novedadReference);
       setStep("success");
+      // La operación ya terminó. El correo de confirmación y el refresco pueden
+      // seguir en segundo plano sin bloquear el botón Aceptar.
+      setIsProcessing(false);
 
       // La novedad ya quedó aplicada en la base. Un fallo del correo de
       // confirmación o del refresco no revierte el movimiento ni debe
@@ -376,7 +381,10 @@ export function NovedadSaldoModal({
   };
 
   const handleAccept = () => {
-    handleClose();
+    // El paso "success" ya confirmó la operación; no debe depender del estado
+    // de `isProcessing` ni de que termine el correo de confirmación.
+    resetModal();
+    onOpenChange(false);
   };
 
   const handleOtpChange = (index: number, value: string) => {
