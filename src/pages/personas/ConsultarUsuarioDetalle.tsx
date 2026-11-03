@@ -117,6 +117,7 @@ export default function ConsultarUsuarioDetalle() {
   const [userData, setUserData] = useState(initialData.userData || null);
   const [empresaData, setEmpresaData] = useState(initialData.empresaData || null);
   const [ahorrosData, setAhorrosData] = useState([]);
+  const [ahorrosTodos, setAhorrosTodos] = useState([]);
   const [totalAhorrado, setTotalAhorrado] = useState(0);
   const [totalBeneficios, setTotalBeneficios] = useState(0);
   const [totalRetirado, setTotalRetirado] = useState(0);
@@ -196,6 +197,19 @@ export default function ConsultarUsuarioDetalle() {
         setUserData(usuario);
         setEmpresaData(empresa);
         setSearchValue(valor);
+
+        // Limpiar los datos del cliente anterior antes de cargar el nuevo.
+        // Si la carga falla, no deben quedar saldos o líneas de otro cliente.
+        setAhorrosData([]);
+        setAhorrosTodos([]);
+        setAhorroSeleccionado(null);
+        setCdatsData([]);
+        setCdatSeleccionado(null);
+        setTotalAhorrado(0);
+        setTotalBeneficios(0);
+        setSaldoTotal(0);
+        setTotalCdatInversion(0);
+        setTotalCdatGanancias(0);
         
         // Cargar datos de ahorro
         const usuarioId = usuario.uid || usuario.docId || usuario.id;
@@ -704,6 +718,7 @@ export default function ConsultarUsuarioDetalle() {
       
       // Obtener TODAS las cuentas de ahorro del usuario (sin filtro de monto)
       const ahorros = await obtenerAhorrosPorUsuario(userUID);
+      setAhorrosTodos(ahorros);
       // Solo mostrar los que tienen el PDF de ahorro con contenido (firmados)
       const ahorrosFirmados = ahorros.filter((a: any) => a.ahorros_doc_pdf1 && a.ahorros_doc_pdf1.trim() !== '');
 
@@ -738,6 +753,7 @@ export default function ConsultarUsuarioDetalle() {
         setSaldoTotal(totalSaldo); // 👈 Suma directa de montoTotal
       } else {
         setAhorrosData([]);
+        setAhorrosTodos([]);
         setAhorroSeleccionado(null);
         setTotalAhorrado(0);
         setTotalBeneficios(0);
@@ -746,6 +762,8 @@ export default function ConsultarUsuarioDetalle() {
     } catch (error) {
       console.error("Error al cargar datos de ahorro");
       setAhorrosData([]);
+      setAhorrosTodos([]);
+      setAhorroSeleccionado(null);
       setTotalAhorrado(0);
       setTotalBeneficios(0);
       setSaldoTotal(0);
@@ -770,11 +788,14 @@ export default function ConsultarUsuarioDetalle() {
         setTotalCdatInversion(totalInv);
         setTotalCdatGanancias(totalGan);
       } else {
+        setCdatSeleccionado(null);
         setTotalCdatInversion(0);
         setTotalCdatGanancias(0);
       }
     } catch (error) {
       console.error("Error al cargar datos de CDAT");
+      setCdatsData([]);
+      setCdatSeleccionado(null);
       setTotalCdatInversion(0);
       setTotalCdatGanancias(0);
     }
@@ -826,9 +847,15 @@ export default function ConsultarUsuarioDetalle() {
         // Cargar movimientos del primer CDAT
         const movimientos = await obtenerMovimientosCdat(cdats[0].id);
         setMovimientosCdat(movimientos);
+      } else {
+        setCdatSeleccionado(null);
+        setMovimientosCdat([]);
       }
     } catch (error) {
       console.error("Error al cargar CDATś");
+      setCdatsData([]);
+      setCdatSeleccionado(null);
+      setMovimientosCdat([]);
     } finally {
       setCargandoCdats(false);
     }
@@ -997,7 +1024,7 @@ export default function ConsultarUsuarioDetalle() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Identificación</p>
-                  <p className="text-sm font-medium text-foreground">{userData?.id || userData?.nit || 'No disponible'}</p>
+                  <p className="text-sm font-medium text-foreground">{userData?.nro_documento || userData?.nit || userData?.id || 'No disponible'}</p>
                 </div>
               </div>
               
@@ -1008,7 +1035,7 @@ export default function ConsultarUsuarioDetalle() {
                 <div>
                   <p className="text-xs text-muted-foreground">Empresa</p>
                   <p className="text-sm font-medium text-foreground">
-                    {ahorrosData?.find(a => a.savings_type === "Linea de Ahorro de nómina")?.compay_name || empresaData?.razonsocial || 'Sin empresa'}
+                    {ahorrosTodos?.find(a => a.savings_type === "Linea de Ahorro de nómina")?.compay_name || empresaData?.razonsocial || 'Sin empresa'}
                   </p>
                 </div>
               </div>
@@ -1176,7 +1203,7 @@ export default function ConsultarUsuarioDetalle() {
                   </button>
                 ))
               ) : (
-                <p>No hay líneas de ahorro</p>
+                <p>{ahorrosTodos.length > 0 ? 'No hay líneas de ahorro firmadas' : 'No hay líneas de ahorro'}</p>
               )}
             </div>
           </div>
@@ -1803,13 +1830,13 @@ export default function ConsultarUsuarioDetalle() {
       )}
 
       {/* User Info Modal */}
-      <UserInfoModal open={showUserModal} onOpenChange={setShowUserModal} userData={userData} ahorrosData={ahorrosData} />
+      <UserInfoModal open={showUserModal} onOpenChange={setShowUserModal} userData={userData} ahorrosData={ahorrosTodos} />
       
       {/* Novedad de Saldo Modal */}
       <NovedadSaldoModal 
         open={showNovedadModal} 
         onOpenChange={setShowNovedadModal}
-        userName={userData?.display_name || "Usuario no disponible"}
+        userName={userData?.display_name || userData?.nombre || userData?.email || "Usuario no disponible"}
         accountType={ahorroSeleccionado?.SavingsType || "Tipo de cuenta no disponible"}
         currentBalance={formatAmount(ahorroSeleccionado?.montoTotal || 0)}
         ahorroSeleccionado={ahorroSeleccionado}

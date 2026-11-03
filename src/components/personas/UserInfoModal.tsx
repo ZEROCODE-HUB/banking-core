@@ -102,7 +102,7 @@ export function UserInfoModal({ open, onOpenChange, userData, ahorrosData }: Use
           <InfoSection title="Datos de registro">
             <div className="grid grid-cols-4 gap-4">
               <InfoRow label="Tipo de documento" value={userData?.tipo_documento || 'No disponible'} />
-              <InfoRow label="Número de documento" value={userData?.nro_documento || userData?.id || 'No disponible'} />
+              <InfoRow label="Número de documento" value={userData?.nro_documento || userData?.nit || userData?.id || 'No disponible'} />
               <InfoRow label="Fecha de expedición del documento" value={formatDate(userData?.fecha_expedicion)} />
               <InfoRow label="Ciudad de expedición del documento" value={userData?.ciudad_expedicion || 'No disponible'} />
             </div>

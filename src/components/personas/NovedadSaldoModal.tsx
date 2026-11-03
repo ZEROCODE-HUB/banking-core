@@ -275,14 +275,19 @@ export function NovedadSaldoModal({
       setStep("success");
 
       // La novedad ya quedó aplicada en la base. Un fallo del correo de
-      // confirmación no revierte el movimiento.
+      // confirmación o del refresco no revierte el movimiento ni debe
+      // mostrarse como un error de la operación.
       try {
         await enviarConfirmacionTransaccion({ novedadId });
       } catch {
         console.error("No se pudo enviar la confirmación de la novedad");
       }
 
-      await onApplied?.();
+      try {
+        await onApplied?.();
+      } catch {
+        console.error("No se pudo refrescar el detalle del cliente");
+      }
     } catch (error) {
       console.error("Error al aplicar la novedad de saldo");
       toast({

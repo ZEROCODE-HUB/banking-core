@@ -136,16 +136,17 @@ export function CrearCDATSection({ onNavigateToLegalizacion }: CrearCDATSectionP
         }
       }
 
-      // Estructurar datos del usuario
+      // Estructurar datos del usuario. El spread va primero para que los
+      // alias calculados no queden anulados por columnas legacy nulas.
       const datosUsuario = {
-        uid: usuario.uid,
+        ...usuario,
+        uid: usuario.uid || usuario.docId || usuario.id,
         nombre: usuario.display_name || `${usuario.name || ''} ${usuario.lastName || ''}`.trim() || 'N/A',
         email: usuario.email || 'N/A',
-        identificacion: usuario.numeroDocumento || usuario.id || usuario.nit || 'N/A',
+        identificacion: usuario.nro_documento || usuario.numeroDocumento || usuario.nit || usuario.id || 'N/A',
         telefono: usuario.phone_number || 'N/A',
         empresa: empresaInfo?.nombreEmpresa || 'Sin empresa asignada',
-        tipoDocumento: usuario.tipoDocumento || 'N/A',
-        ...usuario
+        tipoDocumento: usuario.tipo_documento || usuario.tipoDocumento || 'N/A',
       };
 
       setUserData(datosUsuario);
