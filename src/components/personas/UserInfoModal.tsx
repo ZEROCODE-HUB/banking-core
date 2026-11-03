@@ -236,10 +236,20 @@ export function UserInfoModal({ open, onOpenChange, userData, ahorrosData }: Use
 
           {/* Action Buttons */}
           <div className="flex justify-center gap-4 mt-8">
-            <Button variant="outline" className="px-8 border-primary text-primary hover:bg-primary/10">
+            <Button
+              variant="outline"
+              disabled
+              title="Función pendiente de definir"
+              className="px-8 border-primary text-primary hover:bg-primary/10"
+            >
               Editar
             </Button>
-            <Button variant="outline" className="px-8 border-border text-foreground hover:bg-muted">
+            <Button
+              variant="outline"
+              disabled
+              title="Función pendiente de definir"
+              className="px-8 border-border text-foreground hover:bg-muted"
+            >
               Eliminar
             </Button>
           </div>

@@ -125,6 +125,10 @@ export default function ConsultarUsuarioDetalle() {
   const [totalCdatInversion, setTotalCdatInversion] = useState(0);
   const [totalCdatGanancias, setTotalCdatGanancias] = useState(0);
 
+  // El perfil puede traer `uid` nulo por datos heredados. En ese caso usamos el
+  // id del perfil (docId/id), que es el valor real de `ahorros.user_ref`.
+  const userUID = userData?.uid || userData?.docId || userData?.id;
+
   useEffect(() => {
     if (!initialData.userData) {
       navigate('/personas/consultar');
@@ -133,11 +137,12 @@ export default function ConsultarUsuarioDetalle() {
 
   // Cargar datos de ahorro y CDAT cuando se carga el componente con datos iniciales
   useEffect(() => {
-    if (initialData.userData?.uid && ahorrosData.length === 0) {
-      cargarDatosAhorro(initialData.userData.uid);
-      cargarDatosCdat(initialData.userData.uid);
-    }
-  }, [initialData.userData, ahorrosData]);
+    const initialUserId =
+      initialData.userData?.uid || initialData.userData?.docId || initialData.userData?.id;
+    if (!initialUserId) return;
+    cargarDatosAhorro(initialUserId);
+    cargarDatosCdat(initialUserId);
+  }, [initialData.userData]);
 
   const formatAmount = (amount) => {
     if (!amount || isNaN(amount)) return '$ 0';
@@ -193,9 +198,10 @@ export default function ConsultarUsuarioDetalle() {
         setSearchValue(valor);
         
         // Cargar datos de ahorro
-        if (usuario.uid) {
-          await cargarDatosAhorro(usuario.uid);
-          await cargarDatosCdat(usuario.uid);
+        const usuarioId = usuario.uid || usuario.docId || usuario.id;
+        if (usuarioId) {
+          await cargarDatosAhorro(usuarioId);
+          await cargarDatosCdat(usuarioId);
         }
         
         toast({ title: "Éxito", description: "Usuario encontrado" });
@@ -306,13 +312,13 @@ export default function ConsultarUsuarioDetalle() {
   // 🆕 Calcular total retirado filtrado por año
   useEffect(() => {
     const calcularRetirado = async () => {
-      if (!userData?.uid) {
+      if (!userUID) {
         setTotalRetirado(0);
         return;
       }
       
       try {
-        const total = await calcularTotalRetirado(userData.uid, selectedYear);
+        const total = await calcularTotalRetirado(userUID, selectedYear);
         setTotalRetirado(total);
       } catch (error) {
         console.error("Error al calcular total retirado");
@@ -321,7 +327,7 @@ export default function ConsultarUsuarioDetalle() {
     };
     
     calcularRetirado();
-  }, [userData?.uid, selectedYear]); // Recalcular cuando cambie el usuario o el año
+  }, [userUID, selectedYear]); // Recalcular cuando cambie el usuario o el año
 
   // Cargar transacciones cuando cambia el ahorro seleccionado
   useEffect(() => {
@@ -349,8 +355,8 @@ export default function ConsultarUsuarioDetalle() {
 
   // 🆕 Recargar datos cuando cambia el año seleccionado
   useEffect(() => {
-    if (userData?.uid) {
-      cargarDatosAhorro(userData.uid);
+    if (userUID) {
+      cargarDatosAhorro(userUID);
     }
   }, [selectedYear]);
 
@@ -807,11 +813,11 @@ export default function ConsultarUsuarioDetalle() {
 
   // Cargar CDATś al seleccionar tab
   const cargarCdats = async () => {
-    if (!userData?.uid) return;
+    if (!userUID) return;
     
     setCargandoCdats(true);
     try {
-      const cdats = await obtenerCdatsPorUsuario(userData.uid);
+      const cdats = await obtenerCdatsPorUsuario(userUID);
       setCdatsData(cdats);
       
       // Auto-seleccionar el primer CDAT
@@ -1786,7 +1792,7 @@ export default function ConsultarUsuarioDetalle() {
 
       {activeTab === "Vehículos" && <VehiculosSection userId={userData?.id} />}
 
-      {activeTab === "Historial" && <HistorialSection docId={userData?.uid} />}
+      {activeTab === "Historial" && <HistorialSection docId={userUID} />}
 
       {activeTab === "Información adicional" && (
         <div className="mt-6">
@@ -1808,8 +1814,8 @@ export default function ConsultarUsuarioDetalle() {
         currentBalance={formatAmount(ahorroSeleccionado?.montoTotal || 0)}
         ahorroSeleccionado={ahorroSeleccionado}
         onApplied={async () => {
-          if (userData?.uid) {
-            await cargarDatosAhorro(userData.uid);
+          if (userUID) {
+            await cargarDatosAhorro(userUID);
           }
         }}
       />

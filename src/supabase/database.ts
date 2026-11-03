@@ -146,7 +146,8 @@ export const buscarUsuarioPor = async (campo: string, valor: string) => {
     // fallback: buscar por nit (cédula) cuando se pasa cédula como id
     const { data } = await supabase.from('user_profiles').select('*').eq('nit', valor).limit(1).maybeSingle();
     if (!data) return null;
-    return { docId: data.id, id: data.id, uid: data.id, ...data };
+    // `uid` debe ser el id del perfil, no la columna legacy `uid` (que puede ser null).
+    return { ...data, docId: data.id, id: data.id, uid: data.id };
   }
   const { data, error } = await supabase.from('user_profiles').select('*').eq(col, valor).limit(1).maybeSingle();
   if (error) {
@@ -154,7 +155,7 @@ export const buscarUsuarioPor = async (campo: string, valor: string) => {
     if ((error as any).code === '22P02') return null;
     throw error;
   }
-  if (data) return { docId: data.id, id: data.id, uid: data.id, ...data };
+  if (data) return { ...data, docId: data.id, id: data.id, uid: data.id };
   // El número de documento puede estar en `nit` o en `nro_documento`.
   if (col === 'nit') {
     const { data: alt } = await supabase
@@ -163,7 +164,7 @@ export const buscarUsuarioPor = async (campo: string, valor: string) => {
       .eq('nro_documento', valor)
       .limit(1)
       .maybeSingle();
-    if (alt) return { docId: alt.id, id: alt.id, uid: alt.id, ...alt };
+    if (alt) return { ...alt, docId: alt.id, id: alt.id, uid: alt.id };
   }
   return null;
 };
