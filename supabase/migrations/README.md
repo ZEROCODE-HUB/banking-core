@@ -20,7 +20,9 @@ sesión que no sea CRM SuperAdmin cambie roles desde la API.
 3. `20261102_03_novedades_saldo.sql` — solicitudes, OTP y aplicación atómica.
 4. `20261102_04_novedad_roles.sql` — solo superadmin/admin crean novedades.
 5. `20261102_05_withdrawal_reject.sql` — rechazo atómico de retiros de ahorro.
-6. **No aplicar** `deferred/20261102_06_rls.sql` en esta fase.
+6. `20261104_01_withdrawal_reject_uuid_fix.sql` — corrige el tipo texto/uuid en
+   el rechazo de retiros.
+7. **No aplicar** `deferred/20261102_06_rls.sql` en esta fase.
 
 La segunda migración depende de la primera y las siguientes de las anteriores.
 Todas están dentro de una transacción y son seguras de ejecutar en ese orden.
@@ -30,7 +32,8 @@ Todas están dentro de una transacción y son seguras de ejecutar en ese orden.
 En el panel de Supabase, abrir **SQL Editor**, pegar el contenido de
 `20261102_01_roles.sql`, ejecutarlo, y repetir con
 `20261102_02_role_guard.sql`, `20261102_03_novedades_saldo.sql`,
-`20261102_04_novedad_roles.sql` y `20261102_05_withdrawal_reject.sql`.
+`20261102_04_novedad_roles.sql`, `20261102_05_withdrawal_reject.sql` y
+`20261104_01_withdrawal_reject_uuid_fix.sql`.
 
 Con la CLI de Supabase, desde la raíz del repositorio:
 
@@ -38,8 +41,8 @@ Con la CLI de Supabase, desde la raíz del repositorio:
 supabase db push
 ```
 
-La CLI solo toma `supabase/migrations/`, así que aplicará 01, 02, 03, 04 y 05 y
-dejará `supabase/deferred/06` fuera.
+La CLI solo toma `supabase/migrations/`, así que aplicará 01–05 y la corrección
+del 20261104_01, y dejará `supabase/deferred/06` fuera.
 
 No hace falta la `service_role` key en el frontend. La aplicación sigue usando la
 clave anónima con la sesión del usuario. La `service_role` key solo la usa el
@@ -165,6 +168,12 @@ Prueba funcional con un retiro en estado `PENDING`:
 El rechazo ya no modifica `total_deposits`, `total_saving_value` ni
 `last_deposit`: una devolución de saldo no es un depósito nuevo.
 
+`transactions.ahorros_id` es `text` en la base actual, mientras `ahorros.id` es
+`uuid`. Si ya se aplicó la migración 05, aplicar también
+`20261104_01_withdrawal_reject_uuid_fix.sql`, que convierte el valor antes de
+compararlo. Sin esa corrección el rechazo falla con
+`operator does not exist: uuid = text`.
+
 Variables necesarias en el proxy de correo (`.env`, sin prefijo `VITE_`):
 
 | Variable | Uso |
@@ -202,6 +211,9 @@ aplicarla hay que probarla en staging y revisar la matriz de roles.
 
 ## Rollback
 
+- `20261104_01_withdrawal_reject_uuid_fix_rollback.sql` restaura la versión de
+  `rechazar_retiro` que falla con `uuid = text`. Solo sirve para volver al estado
+  anterior de la migración 05.
 - `20261102_05_withdrawal_reject_rollback.sql` elimina la función
   `rechazar_retiro`. No revierte retiros ya rechazados ni saldos ya devueltos.
 - `20261102_04_novedad_roles_rollback.sql` devuelve a `supervisor` la capacidad
@@ -213,9 +225,9 @@ aplicarla hay que probarla en staging y revisar la matriz de roles.
 - `20261102_01_roles_rollback.sql` devuelve `role` a `user_type` y elimina
   `verification_status` y `role_audit`.
 
-Ejecutar el rollback de 05, después el de 04, el de 03, el de 02 y al final el
-de 01. No ejecutar el rollback de 02 si la migración de RLS ya está aplicada:
-esa migración reutiliza los helpers.
+Ejecutar el rollback de 20261104_01, después el de 05, el de 04, el de 03, el de
+02 y al final el de 01. No ejecutar el rollback de 02 si la migración de RLS ya
+está aplicada: esa migración reutiliza los helpers.
 
 ## Notas de diseño
 
