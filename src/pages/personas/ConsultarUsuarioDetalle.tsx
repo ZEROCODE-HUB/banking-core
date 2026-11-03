@@ -1216,7 +1216,7 @@ export default function ConsultarUsuarioDetalle() {
                   <h4 className="text-base font-medium text-foreground">Línea de {ahorroSeleccionado.SavingsType}</h4>
                   <p className="text-sm text-muted-foreground">Fecha de apertura: {formatDate(ahorroSeleccionado.fechacreacion)}  |  Nro: {ahorroSeleccionado.ea || 9}% E.A</p>
                 </div>
-                {hasRole(user, ROLES.CRM_SUPERADMIN) && (
+                {hasRole(user, ROLES.CRM_SUPERADMIN, ROLES.ADMIN) && (
                   <button 
                     onClick={() => setShowNovedadModal(true)}
                     className="px-3 py-1 rounded-full border border-primary text-primary text-xs font-medium hover:bg-primary/10 transition-colors cursor-pointer"

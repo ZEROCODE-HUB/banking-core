@@ -17,7 +17,7 @@ A "novedad de saldo" is a manual correction to a savings balance. It exists for 
 
 ## 3. Who can use it and how
 
-The control is available only to the super-administrator profile. It appears on the client detail page, inside the **Ahorro** tab, beside the specific savings line being reviewed. A client cannot use it on their own account, and an ordinary user cannot see it.
+The control is available only to the super-administrator and administrator profiles. It appears on the client detail page, inside the **Ahorro** tab, beside the specific savings line being reviewed. A client cannot use it on their own account, and an ordinary user cannot see it.
 
 The administrator selects **Agregar saldo** or **Debitar saldo**, enters the amount and the reason, reviews a summary screen, and then receives a verification code by email. After entering the code, the adjustment is saved, the savings balance changes, and the client receives a confirmation email.
 

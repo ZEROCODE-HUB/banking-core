@@ -101,6 +101,7 @@ async function getActorRole(userId) {
 }
 
 const STAFF_ROLES = new Set(['crm_superadmin', 'admin', 'supervisor']);
+const NOVEDAD_CREATOR_ROLES = new Set(['crm_superadmin', 'admin']);
 
 function generateOtp() {
   return randomInt(0, 1_000_000).toString().padStart(6, '0');
@@ -270,7 +271,7 @@ async function handleSolicitarOtp(req, res) {
   }
 
   const role = await getActorRole(user.id);
-  if (!STAFF_ROLES.has(role)) {
+  if (!NOVEDAD_CREATOR_ROLES.has(role)) {
     sendJson(res, 403, { success: false, error: 'No autorizado para crear novedades de saldo.' });
     return;
   }

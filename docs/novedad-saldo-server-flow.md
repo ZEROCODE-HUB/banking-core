@@ -36,7 +36,7 @@ movimiento de saldo y la transacción en una sola operación de base de datos.
 
 ## Reglas
 
-- Crear: `crm_superadmin`, `admin`, `supervisor`.
+- Crear: `crm_superadmin`, `admin`.
 - Verificar y aplicar: `crm_superadmin`, `admin`.
 - OTP: seis dígitos, 10 minutos, máximo 5 intentos, reenvío con espera de 30
   segundos.
